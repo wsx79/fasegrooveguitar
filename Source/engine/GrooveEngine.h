@@ -41,9 +41,10 @@ struct GuitarSettings
     float density = 0.5f;
     int randomGenre = 0;                   // the genre NEW GROOVE writes in (grooveCategories() index)
 
-    // The chords: one per bar, four bars round. When liveChord is set (notes held on the MIDI
+    // The chords: one per bar, numChords bars round. When liveChord is set (notes held on the MIDI
     // input, e.g. from Fase Groove Piano), every bar plays that chord instead.
-    std::array<Chord, 4> chords {};
+    std::array<Chord, maxChords> chords {};
+    int numChords = 4;                     // the chords used, one per bar (1 to maxChords)
     bool useLiveChord = false;
     ChordTones liveChord {};
     float strumMs = 12.0f;                 // the time between two strings of a strum

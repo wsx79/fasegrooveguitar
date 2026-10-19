@@ -6,6 +6,13 @@ All notable changes to **Fase Groove Guitar**.
 
 ## [Unreleased]
 
+- **174 chord progressions in a browser**, as the grooves': ten categories, every progression with
+  its chords in the key. Fase Groove Piano's progressions (built on 13 scales as the piano builds
+  them: triads, 7ths or 9ths, chords from outside the scale) and more for the guitar (disco &
+  '90s, garage & UK, afro & latin, neo soul & jazz, gospel, circle of fifths).
+- **The circle of fifths** of Fase Groove Piano in the browser: change the key, drag a chord onto
+  another, see how well the chords follow each other; **NEW ROUND THE CIRCLE OF 5THS**.
+- **1 to 8 chords**, one per bar (two rows of slots from five on); chord types m7b5, dim and aug.
 - **A smaller window and a big editor.** The main window shows the groove at a glance (click it to
   edit) and, in a second tab, the volume faders; the dice, MY GROOVES, IMPORT, TEMPLATE and CLEAR
   stay there. **EDITOR...** opens the editor over the whole window, as Fase Groove Piano's piano

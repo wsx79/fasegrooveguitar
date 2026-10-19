@@ -6,6 +6,13 @@ Tutte le modifiche importanti di **Fase Groove Guitar**.
 
 ## [Unreleased]
 
+- **174 giri di accordi in un browser**, come quello dei groove: dieci categorie, ogni giro con i suoi
+  accordi nella tonalità. I giri di Fase Groove Piano (costruiti su 13 scale come li costruisce il
+  piano: triadi, settime o none, accordi fuori scala) e altri per la chitarra (disco & '90s, garage
+  & UK, afro & latin, neo soul & jazz, gospel, circolo delle quinte).
+- **Il circolo delle quinte** di Fase Groove Piano nel browser: cambia tonalità, trascina un accordo
+  su un altro, vedi quanto bene si seguono gli accordi; **NUOVO GIRO NEL CIRCOLO DELLE QUINTE**.
+- **Da 1 a 8 accordi**, uno per battuta (due righe di slot da cinque in su); accordi m7b5, dim e aug.
 - **Finestra più piccola ed editor grande.** La finestra principale mostra il groove a colpo d'occhio
   (clic per modificarlo) e, in una seconda scheda, i fader dei volumi; restano lì i dadi, I MIEI
   GROOVE, IMPORTA, TEMPLATE e SVUOTA. **EDITOR...** apre l'editor sopra tutta la finestra, come il

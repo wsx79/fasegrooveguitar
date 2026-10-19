@@ -39,6 +39,9 @@ namespace ParamIDs
     inline constexpr const char* key         = "key";           // the key of the progressions (0 = C ... 11 = B)
     inline constexpr const char* progression = "progression";   // the last progression picked
     inline constexpr const char* chordInput  = "chordInput";    // the chords held on the MIDI input take over
+    inline constexpr const char* chordCount  = "chordCount";    // how many chord slots play (1..8, one bar each)
+    inline constexpr const char* chordColour = "chordColour";   // triads, 7ths or 9ths (the progressions)
+    inline constexpr const char* scale       = "scale";         // the scale the progressions are built on
     inline constexpr const char* strum       = "strum";         // ms between two strings of a strum
     inline constexpr const char* tone        = "tone";
     inline constexpr const char* reverb      = "reverb";
@@ -152,11 +155,17 @@ public:
     juce::String grooveTemplateName() const { return templateName; }
     void setGrooveTemplateActive (bool on) { templateActive = on && templateName.isNotEmpty(); }
 
-    // The chords: four slots, one bar each (the key transposes them all).
+    // The chords: up to eight slots, one bar each (the key transposes them all).
     fgg::Chord chordAt (int slot) const;
     void setChord (int slot, fgg::Chord);
     /** The four chords of a progression, in the key. */
     void applyProgression (int index);
+    /** Sets the chords (and how many play). */
+    void setChords (const std::vector<fgg::Chord>&);
+    int chordCount() const;
+    void setChordCount (int);
+    /** A new progression round the circle of fifths, in the key and scale. */
+    void newCircleOfFifths();
     /** A new key: the chords move with it. */
     void setKey (int key);
     /** A random progression of the NEW GROOVE genre. */

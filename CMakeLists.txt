@@ -80,7 +80,8 @@ if(FGG_BUILD_PLUGIN)
         Source/PluginEditor.cpp
         Source/Branding.cpp
         Source/Localisation.cpp
-        Source/Updater.cpp)
+        Source/Updater.cpp
+        Source/CircleOfFifths.cpp)
 
     target_compile_definitions(FaseGrooveGuitar PUBLIC
         JUCE_WEB_BROWSER=0

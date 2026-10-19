@@ -39,9 +39,12 @@ tutti e tre insieme.
 - 🎼 **12 modi di suonare un accordo**, uno per riga della griglia: pennata giù, pennata su, stab,
   chank, scratch stoppato, slide, swell, arpeggio, lick, ottave, power chord e fondamentale. Ognuno
   con il voicing di un chitarrista in accordatura standard (sei corde, tre corde acute, una corda...).
-- 🎹 **Accordi:** la tonalità, **giri di accordi per genere** (18, dal vamp minore al 2-5-1 e
-  all'anthem anni '90), quattro slot (uno per battuta: clic per cambiare fondamentale e tipo) e un dado
-  per nuovi accordi.
+- 🎹 **Accordi:** la tonalità, **174 giri di accordi** in un browser (come quello dei groove):
+  soulful & gospel, deep house, jackin' & funky, disco & '90s, garage & UK, afro & latin, neo soul &
+  jazz, circolo delle quinte, modali, cromatici e presi in prestito (i giri di Fase Groove Piano e
+  altri), costruiti sulla scala come li costruisce il piano (triadi, settime o none); da 1 a 8
+  accordi, uno per battuta (clic per cambiarne uno); il **circolo delle quinte** di Fase Groove Piano
+  (cambia tonalità, trascina un accordo su un altro) e un nuovo giro nel circolo.
 - 🎛️ **MIDI IN:** tieni un accordo sull'ingresso MIDI (la tua tastiera, o il **MIDI out di Fase
   Groove Piano** mandato alla traccia della chitarra) e la chitarra lo suona, con il suo ritmo,
   appena cambia.

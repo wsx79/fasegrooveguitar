@@ -145,8 +145,6 @@ static void testLanesAndChords()
     CHECK (inC[0] == (Chord { 0, (int) ChordType::m7 }) && inC[1] == (Chord { 5, (int) ChordType::m7 }));
     for (int g = 0; g < 13; ++g)
         CHECK (genreProgression (g) >= 0 && genreProgression (g) < (int) progressions().size());
-    for (const auto& p : progressions())
-        CHECK (categoryIndex (p.category) >= 0);
 
     // Held notes: the lowest is the root.
     const auto held = tonesOfNotes ({ 57, 60, 64, 67 });   // A C E G
@@ -462,11 +460,17 @@ static void testLoopLengthAndArrangement()
     GuitarSettings s;
     s.fillEveryBars = 0;
     s.variationEvery = 0;
-    s.chords = progressionChords (0, 9);   // i - iv - i - iv: two bars
+    auto setChords = [&s] (const std::vector<Chord>& chords)
+    {
+        s.numChords = (int) chords.size();
+        for (size_t i = 0; i < s.chords.size(); ++i)
+            s.chords[i] = chords[i % chords.size()];
+    };
+    setChords (progressionChords (0, 9));   // i - iv - i - iv: two bars
     CHECK (GrooveEngine::loopLengthInSteps (s) == 32);
-    s.chords = progressionChords (4, 9);   // four chords
+    setChords (progressionChords (4, 9));   // four chords
     CHECK (GrooveEngine::loopLengthInSteps (s) == 64);
-    s.chords = progressionChords (6, 9);   // one chord
+    setChords (progressionChords (6, 9));   // one chord
     s.grooveBars = 4;
     CHECK (GrooveEngine::loopLengthInSteps (s) == 64);
     s.grooveBars = 2;
@@ -506,6 +510,62 @@ static void testPartsAndUserPattern()
     CHECK (stabs == 9);   // three strums of three strings
 }
 
+static void testProgressionsAndCircle()
+{
+    // Many progressions, every one in a known category, one to eight chords, all playable.
+    const auto& list = progressions();
+    CHECK (list.size() >= 150);
+    std::set<std::string> names;
+    for (size_t i = 0; i < list.size(); ++i)
+    {
+        CHECK (names.insert (list[i].name).second);
+        bool known = false;
+        for (const auto* c : progressionCategories())
+            known = known || std::string (c) == list[i].category;
+        CHECK (known);
+        for (int colour = 0; colour < numChordColours; ++colour)
+        {
+            const auto chords = progressionChords ((int) i, 9, colour);
+            CHECK (! chords.empty() && (int) chords.size() <= maxChords);
+            for (const auto& c : chords)
+                CHECK (c.root >= 0 && c.root < 12 && c.type >= 0 && c.type < numChordTypes);
+        }
+    }
+    for (const auto* c : progressionCategories())
+    {
+        int n = 0;
+        for (const auto& p : list)
+            n += std::string (p.category) == c ? 1 : 0;
+        CHECK (n >= 5);
+    }
+
+    // Chords built on a scale, as a keyboard player: C major.
+    CHECK (diatonicChord (0, 0, 1, (int) ChordColour::ninths) == (Chord { 2, (int) ChordType::m9 }));      // Dm9
+    CHECK (diatonicChord (0, 0, 2, (int) ChordColour::ninths) == (Chord { 4, (int) ChordType::m7 }));      // Em7 (no b9)
+    CHECK (diatonicChord (0, 0, 4, (int) ChordColour::sevenths) == (Chord { 7, (int) ChordType::dom7 }));  // G7
+    CHECK (diatonicChord (0, 0, 6, (int) ChordColour::sevenths) == (Chord { 11, (int) ChordType::halfDim }));
+    CHECK (diatonicChord (0, 0, 0, (int) ChordColour::triads) == (Chord { 0, (int) ChordType::major }));
+    CHECK (codeChord (0, 31, (int) ChordColour::sevenths) == (Chord { 7, (int) ChordType::dom7 }));        // V7 code
+    CHECK (codeChord (0, 17, (int) ChordColour::triads) == (Chord { 5, (int) ChordType::minor }));         // iv
+
+    // Round the circle of fifths: each chord's root a fifth below the one before (or a secondary
+    // dominant a fifth above the next), ending on the tonic or the dominant.
+    for (std::uint32_t seed = 1; seed < 60; ++seed)
+        for (int length : { 3, 4, 6, 8 })
+        {
+            const auto c = circleOfFifthsProgression (seed, 9, 2, length, (int) ChordColour::sevenths);
+            CHECK ((int) c.size() == length);
+            CHECK (c.back().root == 9 || c.back().root == 4);
+            for (size_t i = 0; i + 1 < c.size(); ++i)
+            {
+                const int move = ((c[i + 1].root - c[i].root) % 12 + 12) % 12;
+                CHECK (move == 5 || move == 6 || (ChordType) c[i].type == ChordType::dom7);   // a fifth down (a tritone in the scale's diminished step)
+            }
+        }
+    CHECK (circleOfFifthsProgression (7, 0, 0, 4, 2) == circleOfFifthsProgression (7, 0, 0, 4, 2));
+    CHECK (transitionScore ({ 2, (int) ChordType::m7 }, { 7, (int) ChordType::dom7 }) > transitionScore ({ 2, (int) ChordType::m7 }, { 8, (int) ChordType::dom7 }));
+}
+
 int main()
 {
     testPresets();
@@ -520,6 +580,7 @@ int main()
     testFillsAndVariations();
     testLoopLengthAndArrangement();
     testPartsAndUserPattern();
+    testProgressionsAndCircle();
 
     if (failures == 0)
         std::printf ("All engine tests passed.\n");

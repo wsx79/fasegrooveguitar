@@ -49,9 +49,13 @@ La stessa disposizione di Fase Groove Piano e Fase Groove Drums:
 ## 4. Accordi
 
 - **Tonalità** (il menu a sinistra): gli accordi si spostano con lei.
-- **GIRO DI ACCORDI...:** quattro accordi per genere, nella tonalità (18 giri: vamp minore, il deep
-  m9, il 2-5-1 soulful, il 4-5-3-6 gospel, l'anthem anni '90, disco dorica, funk su un accordo...).
-  Il **dado** sceglie un altro giro del genere del groove.
+- **GIRO DI ACCORDI...:** il browser dei giri: 174 giri in dieci categorie, ognuno con i suoi accordi
+  nella tonalità; un clic lo carica. A destra il **circolo delle quinte** (come in Fase Groove Piano):
+  clicca una tonalità per cambiarla; i pallini sono i tuoi accordi: trascinane uno su un altro accordo
+  per cambiarlo. Sotto: tonalità, **scala** (13, come nel piano), **colore** (triadi, settime, none) e
+  quanti **accordi** suonano (da 1 a 8, uno per battuta), e **NUOVO GIRO NEL CIRCOLO DELLE QUINTE**:
+  ogni accordo una quinta sotto il precedente, a volte con una dominante secondaria. Il **dado**
+  accanto a GIRO DI ACCORDI... sceglie un giro del genere del groove (o un nuovo giro nel circolo).
 - **I quattro slot:** un accordo per battuta, a ciclo (quattro battute). Clicca uno slot per
   cambiare fondamentale o tipo (maj7, m7, 7, m9, maj9, 9, m11, 13, 7sus4, 6/9, maggiore, minore),
   copiare l'accordo di un'altra battuta o metterlo su tutte. Lo slot che suona è illuminato.

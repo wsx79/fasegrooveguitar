@@ -39,8 +39,12 @@ together.
 - 🎼 **12 ways to play a chord**, one per row of the grid: down strum, up strum, stab, chank, muted
   scratch, slide, swell, arpeggio, lick, octaves, power chord and root. Each one voiced as a
   guitarist plays it in standard tuning (the full six strings, three high strings, one string...).
-- 🎹 **Chords:** the key, **progressions by genre** (18, from the minor vamp to the 2-5-1 and the
-  '90s anthem), four chord slots (one per bar: click to change root and type) and a die for new ones.
+- 🎹 **Chords:** the key, **174 progressions** in a browser (as the grooves'): soulful & gospel,
+  deep house, jackin' & funky, disco & '90s, garage & UK, afro & latin, neo soul & jazz, circle of
+  5ths, modal, chromatic & borrowed (Fase Groove Piano's progressions, and more), built on the
+  scale as the piano builds them (triads, 7ths or 9ths); 1 to 8 chords, one per bar (click one to
+  change it); the **circle of fifths** of Fase Groove Piano (change key, drag a chord onto another)
+  and a new progression round it.
 - 🎛️ **MIDI IN:** hold a chord on the MIDI input (your keyboard, or **Fase Groove Piano's MIDI out**
   routed to the guitar's track) and the guitar plays it, with its rhythm, as it changes.
 - 🎲 **NEW GROOVE:** a random but musical groove in the genre you choose, from a few chords to

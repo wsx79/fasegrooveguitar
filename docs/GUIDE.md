@@ -48,9 +48,13 @@ The same layout as Fase Groove Piano and Fase Groove Drums:
 ## 4. Chords
 
 - **Key** (the menu on the left): the chords move with it.
-- **PROGRESSION...:** four chords by genre, in the key (18 progressions: minor vamp, the deep m9
-  drift, the soulful 2-5-1, the gospel 4-5-3-6, the '90s anthem, Dorian disco, one-chord funk...).
-  The **die** picks another progression of the groove genre.
+- **PROGRESSION...:** the progression browser: 174 progressions in ten categories, each with its
+  chords in the key; a click loads one. On the right the **circle of fifths** (as in Fase Groove
+  Piano): click a key to change it; the dots are your chords: drag one onto another chord to change
+  it. Under it: key, **scale** (13, as the piano's), **colour** (triads, 7ths, 9ths) and how many
+  **chords** play (1 to 8, one per bar), and **NEW ROUND THE CIRCLE OF 5THS**: each chord a fifth
+  below the one before, sometimes with a secondary dominant. The **die** next to PROGRESSION... picks
+  a progression of the groove genre (or a new circle).
 - **The four slots:** one chord per bar, round and round (four bars). Click one to change its root or
   its type (maj7, m7, 7, m9, maj9, 9, m11, 13, 7sus4, 6/9, major, minor), copy another bar's chord,
   or put it on every bar. The slot playing now is lit.

@@ -7,6 +7,7 @@
 #include "Localisation.h"
 #include "Updater.h"
 #include "PluginProcessor.h"
+#include "CircleOfFifths.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -417,20 +418,64 @@ public:
 private:
     juce::Rectangle<float> slotBounds (int slot) const;
     void showSlotMenu (int slot);
-    void showProgressionMenu();
 
     FaseGrooveGuitarProcessor& processor;
+public:
+    /** Opens the progression browser (set by the editor). */
+    std::function<void()> onBrowse;
+private:
     juce::ComboBox keyBox;
     juce::TextButton progressionButton { "PROGRESSION..." }, inputButton { "MIDI IN" };
     IconButton diceButton { IconButton::Icon::dice };
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> inputAttachment;
-    std::array<fgg::Chord, 4> chords {};
+    std::array<fgg::Chord, fgg::maxChords> chords {};
+    int count = 4;
     int playingSlot = -1;
     fgg::ChordTones held { 0, 0 };
     bool following = false;
 };
 
 //==============================================================================
+/** The progression browser, as the groove browser: the categories on the left, their progressions
+    (with their chords in the key) in the middle; a click loads one (you hear it at once if it
+    plays). On the right the circle of fifths of Fase Groove Piano: the key, the chords of the
+    scale and the path the progression draws (click a key to change it, drag a chord's dot onto
+    another chord), and the key, scale, chord colour and number of chords, and a new progression
+    round the circle of fifths. */
+class ProgressionBrowser : public juce::Component
+{
+public:
+    explicit ProgressionBrowser (FaseGrooveGuitarProcessor&);
+    void paint (juce::Graphics&) override;
+    void resized() override;
+    void mouseDown (const juce::MouseEvent&) override;
+    void mouseMove (const juce::MouseEvent&) override;
+    void mouseExit (const juce::MouseEvent&) override { hover = -1; repaint(); }
+    void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
+    bool keyPressed (const juce::KeyPress&) override;
+    void show();
+    /** Re-reads the chords (editor timer, while it is open). */
+    void refresh();
+
+private:
+    juce::Rectangle<float> card() const;
+    juce::Rectangle<float> categoryBounds (int category) const;
+    juce::Rectangle<float> listArea() const;
+    juce::Rectangle<float> tileBounds (int index) const;   // before scrolling
+    std::vector<int> progressionsOf (int category) const;
+    void pick (int progression);
+    void updateCircle();
+
+    FaseGrooveGuitarProcessor& processor;
+    int category = 0, hover = -1;
+    float scroll = 0.0f;
+    CircleOfFifths circle;
+    juce::ComboBox keyBox, scaleBox, colourBox, countBox;
+    IconButton circleButton { IconButton::Icon::dice };
+    juce::TextButton closeButton { "CLOSE" };
+    juce::String lastState;
+};
+
 //==============================================================================
 /** The groove at a glance, on the main window: every lane's hits and the playhead, only to
     look at. A click opens the editor. */
@@ -619,6 +664,7 @@ private:
 
     SongOverlay songOverlay { processor };
     GrooveBrowser browser { processor };
+    ProgressionBrowser progressionBrowser { processor };
     OptionsOverlay options;
     UpdateOverlay updateOverlay;
     Updater::Checker updateChecker;

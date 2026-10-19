@@ -9,6 +9,7 @@
 // and the user pattern. Pure C++ (no JUCE).
 
 #include <array>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -31,8 +32,9 @@ bool isChordLane (int lane) noexcept;
 
 //==============================================================================
 /** Chord qualities, as the chord slots show them. */
-enum class ChordType { maj7 = 0, m7, dom7, m9, maj9, dom9, m11, dom13, sus4, sixNine, major, minor };
-constexpr int numChordTypes = 12;
+enum class ChordType { maj7 = 0, m7, dom7, m9, maj9, dom9, m11, dom13, sus4, sixNine, major, minor,
+                       halfDim, dim, aug };   // (new types are appended: saved projects keep theirs)
+constexpr int numChordTypes = 15;
 const char* chordTypeName (int type) noexcept;   // "maj7", "m7", "7" ... ("" for a major triad)
 /** The intervals of a chord type, as a bit mask over the 12 semitones above the root. */
 unsigned chordTypeMask (int type) noexcept;
@@ -67,17 +69,56 @@ ChordTones tonesOfNotes (const std::vector<int>& notes) noexcept;
 std::vector<int> laneNotes (Lane lane, const ChordTones& chord, int stepInBar, int octave = 0);
 
 //==============================================================================
-/** Chord progressions (four bars, one chord each), by genre, as intervals above the key. */
+/** The scales of Fase Groove Piano (the same order): Major, Dorian, Minor, Mixolydian, Lydian,
+    Phrygian, Harmonic minor, Melodic minor, Locrian, Harmonic major, Lydian dominant,
+    Mixolydian b6, Phrygian dominant. */
+constexpr int numScales = 13;
+const char* scaleName (int scale) noexcept;
+const std::array<int, 7>& scaleIntervals (int scale) noexcept;
+bool scaleIsMinor (int scale) noexcept;
+
+/** How rich the chords built on a scale are: triads, 7ths or 9ths (a 9th only where it is a
+    whole tone above the root, as a keyboard player tidies them up). */
+enum class ChordColour { triads = 0, sevenths, ninths };
+constexpr int numChordColours = 3;
+const char* chordColourName (int colour) noexcept;
+
+/** The chord on a degree (0..6) of a scale in a key. */
+Chord diatonicChord (int key, int scale, int degree, int colour);
+
+/** A chord outside the scale, as Fase Groove Piano stores it: semitones above the key + 12 for a
+    minor chord, + 24 for a dominant one. */
+Chord codeChord (int key, int code, int colour);
+
+/** The most chords a progression has: one per bar, round and round. */
+constexpr int maxChords = 8;
+
+/** Chord progressions, by category: degrees of a scale (as Fase Groove Piano's), chords from the
+    circle of fifths outside it (codes), or chords set one by one (fixed: semitones above the key
+    and a type). */
 struct Progression
 {
     const char* name;
     const char* category;
-    std::array<int, 4> degree;             // semitones above the key
-    std::array<ChordType, 4> type;
+    int scale = 0;
+    std::vector<int> degrees {};
+    std::vector<int> codes {};
+    std::vector<std::pair<int, ChordType>> fixed {};
 };
 const std::vector<Progression>& progressions();
-/** The four chords of a progression in a key (0 = C ... 11 = B). */
-std::array<Chord, 4> progressionChords (int progression, int key);
+/** The progression browser's headings, in display order. */
+const std::vector<const char*>& progressionCategories();
+/** The chords of a progression in a key (1 to 8 of them). */
+std::vector<Chord> progressionChords (int progression, int key, int colour = (int) ChordColour::ninths);
+
+/** A new progression that walks the circle of fifths in a scale (each chord a fifth below the one
+    before, landing on the tonic or the dominant), now and then with a secondary dominant on the
+    way. Same seed = same progression. */
+std::vector<Chord> circleOfFifthsProgression (std::uint32_t seed, int key, int scale, int length, int colour);
+
+/** How well chord b sounds after chord a, 0 (clashes) to 1: shared notes and the root's move
+    (down a fifth is the strongest). */
+float transitionScore (const Chord& a, const Chord& b) noexcept;
 
 //==============================================================================
 /** A guitar groove: one line per lane, one character per 16th step:
@@ -113,6 +154,8 @@ float genreSwing (int category) noexcept;
 
 /** The progression that suits a genre (an index into progressions()). */
 int genreProgression (int category) noexcept;
+/** The progression category whose chords suit a genre (the dice pick there). */
+const char* genreProgressionCategory (int category) noexcept;
 
 /** Index of the "Random groove" entry, right after the preset grooves. */
 int randomPatternIndex() noexcept;

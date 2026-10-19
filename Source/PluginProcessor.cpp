@@ -118,7 +118,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout FaseGrooveGuitarProcessor::c
         choice (ParamIDs::segment (i), "Part " + String (i + 1), { "A", "B", "C", "D" }, i);
     group ("groove", "Groove");
 
-    // Chords: the key, the last progression picked and the four chord slots (one bar each)
+    // Chords: the key, the last progression picked, up to eight chord slots (one bar each), how many
+    // play, how rich they are and the scale they are built on
     StringArray keys, chordTypes, progressionNames;
     for (int k = 0; k < 12; ++k)
         keys.add (fgg::pitchClassName (k));
@@ -129,11 +130,15 @@ juce::AudioProcessorValueTreeState::ParameterLayout FaseGrooveGuitarProcessor::c
     const auto defaultChords = fgg::progressionChords (fgg::genreProgression (0), 9);
     choice (ParamIDs::key, "Key", keys, 9);
     choice (ParamIDs::progression, "Progression", progressionNames, fgg::genreProgression (0));
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < fgg::maxChords; ++i)
     {
-        choice (ParamIDs::chordRoot (i), "Chord " + String (i + 1) + " root", keys, defaultChords[(size_t) i].root);
-        choice (ParamIDs::chordType (i), "Chord " + String (i + 1) + " type", chordTypes, defaultChords[(size_t) i].type);
+        const auto& c = defaultChords[(size_t) i % defaultChords.size()];
+        choice (ParamIDs::chordRoot (i), "Chord " + String (i + 1) + " root", keys, c.root);
+        choice (ParamIDs::chordType (i), "Chord " + String (i + 1) + " type", chordTypes, c.type);
     }
+    choice (ParamIDs::chordCount, "Chords", { "1", "2", "3", "4", "5", "6", "7", "8" }, (int) defaultChords.size() - 1);
+    choice (ParamIDs::chordColour, "Chord colour", namesFrom (fgg::numChordColours, fgg::chordColourName), (int) fgg::ChordColour::ninths);
+    choice (ParamIDs::scale, "Scale", namesFrom (fgg::numScales, fgg::scaleName), 0);
     toggle (ParamIDs::chordInput, "Chords from MIDI in", true);
     group ("chords", "Chords");
 
@@ -307,8 +312,9 @@ fgg::GuitarSettings FaseGrooveGuitarProcessor::currentSettings() const
             s.customFill[(size_t) l][(size_t) i] = customFill[(size_t) l][(size_t) i].load();
     }
     s.tempo = lastBpm.load();
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < fgg::maxChords; ++i)
         s.chords[(size_t) i] = chordAt (i);
+    s.numChords = chordCount();
     s.useLiveChord = followsHeldChord();
     s.liveChord = heldChord();
     s.strumMs = raw (ParamIDs::strum);
@@ -680,14 +686,14 @@ bool FaseGrooveGuitarProcessor::isAudioFile (const juce::File& file)
 //==============================================================================
 fgg::Chord FaseGrooveGuitarProcessor::chordAt (int slot) const
 {
-    slot = juce::jlimit (0, 3, slot);
+    slot = juce::jlimit (0, fgg::maxChords - 1, slot);
     return { juce::jlimit (0, 11, juce::roundToInt (raw (ParamIDs::chordRoot (slot)))),
              juce::jlimit (0, fgg::numChordTypes - 1, juce::roundToInt (raw (ParamIDs::chordType (slot)))) };
 }
 
 void FaseGrooveGuitarProcessor::setChord (int slot, fgg::Chord chord)
 {
-    slot = juce::jlimit (0, 3, slot);
+    slot = juce::jlimit (0, fgg::maxChords - 1, slot);
     setParameterFromUI (ParamIDs::chordRoot (slot), (float) ((chord.root % 12 + 12) % 12));
     setParameterFromUI (ParamIDs::chordType (slot), (float) juce::jlimit (0, fgg::numChordTypes - 1, chord.type));
 }
@@ -696,14 +702,39 @@ void FaseGrooveGuitarProcessor::applyProgression (int index)
 {
     index = juce::jlimit (0, (int) fgg::progressions().size() - 1, index);
     setParameterFromUI (ParamIDs::progression, (float) index);
-    const auto chords = fgg::progressionChords (index, juce::roundToInt (raw (ParamIDs::key)));
-    for (int i = 0; i < 4; ++i)
-        setChord (i, chords[(size_t) i]);
+    setParameterFromUI (ParamIDs::scale, (float) fgg::progressions()[(size_t) index].scale);
+    setChords (fgg::progressionChords (index, juce::roundToInt (raw (ParamIDs::key)), juce::roundToInt (raw (ParamIDs::chordColour))));
+}
+
+void FaseGrooveGuitarProcessor::setChords (const std::vector<fgg::Chord>& chords)
+{
+    if (chords.empty())
+        return;
+    setChordCount ((int) chords.size());
+    for (int i = 0; i < fgg::maxChords; ++i)
+        setChord (i, chords[(size_t) i % chords.size()]);
+}
+
+int FaseGrooveGuitarProcessor::chordCount() const
+{
+    return juce::jlimit (1, fgg::maxChords, juce::roundToInt (raw (ParamIDs::chordCount)) + 1);
+}
+
+void FaseGrooveGuitarProcessor::setChordCount (int count)
+{
+    setParameterFromUI (ParamIDs::chordCount, (float) (juce::jlimit (1, fgg::maxChords, count) - 1));
+}
+
+void FaseGrooveGuitarProcessor::newCircleOfFifths()
+{
+    const int length = chordCount() >= 3 ? chordCount() : 4;
+    setChords (fgg::circleOfFifthsProgression (freshSeed(), juce::roundToInt (raw (ParamIDs::key)), juce::roundToInt (raw (ParamIDs::scale)),
+                                               length, juce::roundToInt (raw (ParamIDs::chordColour))));
 }
 
 void FaseGrooveGuitarProcessor::transposeChords (int semitones)
 {
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < fgg::maxChords; ++i)
     {
         auto c = chordAt (i);
         c.root = ((c.root + semitones) % 12 + 12) % 12;
@@ -727,13 +758,19 @@ void FaseGrooveGuitarProcessor::setKey (int key)
 
 void FaseGrooveGuitarProcessor::randomizeChords()
 {
-    // A progression of the genre the dice write in, or now and then any other one.
+    // A progression that suits the genre the dice write in, now and then any other one, and
+    // sometimes a new walk round the circle of fifths.
     auto& r = juce::Random::getSystemRandom();
+    if (r.nextInt (4) == 0)
+    {
+        newCircleOfFifths();
+        return;
+    }
     const int genre = juce::roundToInt (raw (ParamIDs::genre));
     const auto& list = fgg::progressions();
     juce::Array<int> fits;
     for (int i = 0; i < (int) list.size(); ++i)
-        if (juce::String (list[(size_t) i].category) == fgg::grooveCategories()[(size_t) juce::jlimit (0, 12, genre)])
+        if (juce::String (list[(size_t) i].category) == fgg::genreProgressionCategory (genre))
             fits.add (i);
     const int current = juce::roundToInt (raw (ParamIDs::progression));
     int pick = ! fits.isEmpty() && r.nextInt (3) != 0 ? fits[r.nextInt (fits.size())] : r.nextInt ((int) list.size());
@@ -746,7 +783,8 @@ fgg::ChordTones FaseGrooveGuitarProcessor::chordForBar (long long bar) const
 {
     if (followsHeldChord())
         return heldChord();
-    return fgg::tonesOf (chordAt ((int) (((bar % 4) + 4) % 4)));
+    const int n = chordCount();
+    return fgg::tonesOf (chordAt ((int) (((bar % n) + n) % n)));
 }
 
 std::uint32_t FaseGrooveGuitarProcessor::freshSeed()
@@ -2263,9 +2301,11 @@ bool FaseGrooveGuitarProcessor::importMidiGroove (const juce::File& file)
     for (int i = 0; i < fgg::numSegments; ++i)
         setSegmentAt (i, i);
 
-    // The chords of the first four bars: the chord whose tones weigh the most (long, loud notes
-    // count more, the lowest note is likely the root). A bar without notes keeps its chord.
-    for (int bar = 0; bar < 4; ++bar)
+    // The chords of the first bars (up to eight): the chord whose tones weigh the most (long, loud
+    // notes count more, the lowest note is likely the root). A bar without notes keeps its chord.
+    const int bars = juce::jlimit (1, fgg::maxChords, (int) std::ceil ((last - start) / 4.0 + 1.0e-6));
+    setChordCount (bars);
+    for (int bar = 0; bar < bars; ++bar)
     {
         std::array<double, 12> weight {};
         int lowest = 128;

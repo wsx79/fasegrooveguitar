@@ -2543,7 +2543,7 @@ ChordPanel::ChordPanel (FaseGrooveGuitarProcessor& p) : processor (p)
 
     Localisation::bindText (progressionButton, "PROGRESSION...");
     Localisation::bindTip (progressionButton, "Four chords by genre, in the key (the same genres as Fase Groove Piano)");
-    progressionButton.onClick = [this] { showProgressionMenu(); };
+    progressionButton.onClick = [this] { if (onBrowse != nullptr) onBrowse(); };
     addAndMakeVisible (progressionButton);
 
     diceButton.iconColour = Palette::accent;
@@ -2588,16 +2588,18 @@ juce::String ChordPanel::nameOf (const fgg::ChordTones& c)
 void ChordPanel::refresh()
 {
     showInMenu (keyBox, juce::roundToInt (processor.raw (ParamIDs::key)) + 1);
-    std::array<fgg::Chord, 4> now;
-    for (int i = 0; i < 4; ++i)
+    std::array<fgg::Chord, fgg::maxChords> now;
+    for (int i = 0; i < fgg::maxChords; ++i)
         now[(size_t) i] = processor.chordAt (i);
+    const int n = processor.chordCount();
     const double ppq = processor.uiPpq.load();
-    const int playing = ppq >= 0.0 ? (int) std::fmod (std::floor (ppq / 4.0), 4.0) : -1;
+    const int playing = ppq >= 0.0 ? (int) std::fmod (std::floor (ppq / 4.0), (double) n) : -1;
     const auto heldNow = processor.heldChord();
     const bool followingNow = processor.followsHeldChord();
-    if (now != chords || playing != playingSlot || ! (heldNow == held) || followingNow != following)
+    if (now != chords || n != count || playing != playingSlot || ! (heldNow == held) || followingNow != following)
     {
         chords = now;
+        count = n;
         playingSlot = playing;
         held = heldNow;
         following = followingNow;
@@ -2607,8 +2609,11 @@ void ChordPanel::refresh()
 
 juce::Rectangle<float> ChordPanel::slotBounds (int slot) const
 {
-    const float w = (float) getWidth() / 4.0f;
-    return juce::Rectangle<float> (w * (float) slot, 34.0f, w, 76.0f).reduced (3.0f, 0.0f);
+    // One row of up to four chords; five to eight in two rows.
+    const int perRow = count > 4 ? (count + 1) / 2 : juce::jmax (1, count);
+    const int rows = count > 4 ? 2 : 1;
+    const float w = (float) getWidth() / (float) perRow, h = 76.0f / (float) rows;
+    return juce::Rectangle<float> (w * (float) (slot % perRow), 34.0f + h * (float) (slot / perRow), w, h).reduced (3.0f, rows > 1 ? 1.5f : 0.0f);
 }
 
 void ChordPanel::resized()
@@ -2621,7 +2626,8 @@ void ChordPanel::resized()
 
 void ChordPanel::paint (juce::Graphics& g)
 {
-    for (int i = 0; i < 4; ++i)
+    const bool small = count > 4;
+    for (int i = 0; i < count; ++i)
     {
         const auto r = slotBounds (i);
         const bool on = i == playingSlot && ! following;
@@ -2630,12 +2636,13 @@ void ChordPanel::paint (juce::Graphics& g)
         g.setColour (on ? Palette::accent2 : Palette::panelEdge.brighter (0.15f));
         g.drawRoundedRectangle (r.reduced (0.5f), 6.0f, on ? 1.6f : 1.0f);
 
-        auto inner = r.reduced (5.0f, 6.0f);
+        auto inner = r.reduced (4.0f, small ? 2.0f : 6.0f);
         g.setColour (Palette::dim);
-        g.setFont (font (9.5f, true));
-        g.drawText (Localisation::upper (tr ("Bar")) + " " + juce::String (i + 1), inner.removeFromTop (12.0f), juce::Justification::centred);
+        g.setFont (font (small ? 8.0f : 9.5f, true));
+        g.drawText (small ? juce::String (i + 1) : Localisation::upper (tr ("Bar")) + " " + juce::String (i + 1),
+                    inner.removeFromTop (small ? 9.0f : 12.0f), juce::Justification::centred);
         g.setColour (following ? Palette::dim.withAlpha (0.5f) : Palette::text);
-        g.setFont (font (fgg::chordName (chords[(size_t) i]).size() > 5 ? 15.0f : 19.0f, true));
+        g.setFont (font (small ? 12.5f : fgg::chordName (chords[(size_t) i]).size() > 5 ? 15.0f : 19.0f, true));
         g.drawFittedText (fgg::chordName (chords[(size_t) i]), inner.toNearestInt(), juce::Justification::centred, 1, 0.6f);
     }
 
@@ -2657,7 +2664,7 @@ void ChordPanel::paint (juce::Graphics& g)
 
 void ChordPanel::mouseDown (const juce::MouseEvent& e)
 {
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < count; ++i)
         if (slotBounds (i).contains (e.position))
         {
             showSlotMenu (i);
@@ -2677,11 +2684,15 @@ void ChordPanel::showSlotMenu (int slot)
     menu.addSubMenu (tr ("Root") + ": " + fgg::pitchClassName (chord.root), roots);
     menu.addSubMenu (tr ("Chord") + ": " + fgg::chordName (chord), types);
     menu.addSeparator();
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < processor.chordCount(); ++i)
         if (i != slot)
             copies.addItem (300 + i, Localisation::upper (tr ("Bar")) + " " + juce::String (i + 1) + ": " + fgg::chordName (processor.chordAt (i)));
     menu.addSubMenu (tr ("The same chord as..."), copies);
     menu.addItem (400, tr ("This chord on every bar"));
+    juce::PopupMenu counts;
+    for (int n = 1; n <= fgg::maxChords; ++n)
+        counts.addItem (500 + n, juce::String (n), true, n == processor.chordCount());
+    menu.addSubMenu (tr ("Chords") + ": " + juce::String (processor.chordCount()), counts);
 
     juce::Component::SafePointer<ChordPanel> safe (this);
     menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this).withMousePosition(), [safe, slot, chord] (int result)
@@ -2693,42 +2704,350 @@ void ChordPanel::showSlotMenu (int slot)
         else if (result >= 200 && result < 300) p.setChord (slot, { chord.root, result - 200 });
         else if (result >= 300 && result < 304) p.setChord (slot, p.chordAt (result - 300));
         else if (result == 400)
-            for (int i = 0; i < 4; ++i)
+            for (int i = 0; i < fgg::maxChords; ++i)
                 p.setChord (i, chord);
+        else if (result > 500 && result <= 500 + fgg::maxChords)
+            p.setChordCount (result - 500);
         safe->refresh();
     });
 }
 
-void ChordPanel::showProgressionMenu()
+
+//==============================================================================
+ProgressionBrowser::ProgressionBrowser (FaseGrooveGuitarProcessor& p) : processor (p)
 {
-    juce::PopupMenu menu;
-    const int key = juce::roundToInt (processor.raw (ParamIDs::key));
-    const int current = juce::roundToInt (processor.raw (ParamIDs::progression));
-    const auto& list = fgg::progressions();
-    for (const auto* genre : fgg::grooveCategories())
+    setWantsKeyboardFocus (true);
+    addAndMakeVisible (circle);
+    circle.setFreeMode (true);
+    circle.onPick = [this] (int pc, bool minor)
     {
-        bool any = false;
-        for (int i = 0; i < (int) list.size(); ++i)
-            if (juce::String (list[(size_t) i].category) == genre)
-            {
-                if (! any)
-                    menu.addSectionHeader (genre);
-                any = true;
-                juce::StringArray names;
-                for (const auto& c : fgg::progressionChords (i, key))
-                    names.add (fgg::chordName (c));
-                menu.addItem (i + 1, names.joinIntoString ("  ") + "   (" + list[(size_t) i].name + ")", true, i == current);
-            }
+        processor.setKey (pc);
+        const bool minorNow = fgg::scaleIsMinor (juce::roundToInt (processor.raw (ParamIDs::scale)));
+        if (minor != minorNow)
+            processor.setParameterFromUI (ParamIDs::scale, minor ? 2.0f : 0.0f);
+        refresh();
+    };
+    circle.onMoveChord = [this] (int slot, int degree, int root, bool minor)
+    {
+        const int key = juce::roundToInt (processor.raw (ParamIDs::key)), colour = juce::roundToInt (processor.raw (ParamIDs::chordColour));
+        processor.setChord (slot, degree >= 0 ? fgg::diatonicChord (key, juce::roundToInt (processor.raw (ParamIDs::scale)), degree, colour)
+                                              : fgg::codeChord (key, ((root - key) % 12 + 12) % 12 + (minor ? 12 : 0), colour));
+        refresh();
+    };
+
+    for (int k = 0; k < 12; ++k)
+        keyBox.addItem (fgg::pitchClassName (k), k + 1);
+    for (int sc = 0; sc < fgg::numScales; ++sc)
+        scaleBox.addItem (fgg::scaleName (sc), sc + 1);
+    juce::StringArray colourNames;
+    for (int col = 0; col < fgg::numChordColours; ++col)
+    {
+        colourBox.addItem (fgg::chordColourName (col), col + 1);
+        colourNames.add (fgg::chordColourName (col));
     }
-    juce::Component::SafePointer<ChordPanel> safe (this);
-    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&progressionButton), [safe] (int result)
+    Localisation::bindItems (colourBox, colourNames);
+    for (int n = 1; n <= fgg::maxChords; ++n)
+        countBox.addItem (juce::String (n), n);
+    keyBox.onChange = [this] { pickedFromMenu (keyBox); if (keyBox.getSelectedId() > 0) processor.setKey (keyBox.getSelectedId() - 1); refresh(); };
+    scaleBox.onChange = [this] { pickedFromMenu (scaleBox); if (scaleBox.getSelectedId() > 0) processor.setParameterFromUI (ParamIDs::scale, (float) (scaleBox.getSelectedId() - 1)); refresh(); };
+    colourBox.onChange = [this]
     {
-        if (safe != nullptr && result > 0)
-        {
-            safe->processor.applyProgression (result - 1);
-            safe->refresh();
-        }
+        pickedFromMenu (colourBox);
+        if (colourBox.getSelectedId() <= 0)
+            return;
+        processor.setParameterFromUI (ParamIDs::chordColour, (float) (colourBox.getSelectedId() - 1));
+        processor.applyProgression (juce::roundToInt (processor.raw (ParamIDs::progression)));   // the same chords, richer or plainer
+        refresh();
+    };
+    countBox.onChange = [this] { pickedFromMenu (countBox); if (countBox.getSelectedId() > 0) processor.setChordCount (countBox.getSelectedId()); refresh(); };
+    for (auto* b : { &keyBox, &scaleBox, &colourBox, &countBox })
+        addAndMakeVisible (b);
+
+    circleButton.iconColour = Palette::accent;
+    circleButton.onClick = [this] { processor.newCircleOfFifths(); refresh(); };
+    addAndMakeVisible (circleButton);
+    closeButton.onClick = [this] { setVisible (false); };
+    addAndMakeVisible (closeButton);
+    Localisation::bind (*this, [this]
+    {
+        circleButton.setButtonText (tr ("NEW ROUND THE CIRCLE OF 5THS"));
+        circleButton.setTooltip (tr ("A new progression in the key and scale: each chord a fifth below the one before, sometimes with a secondary dominant"));
+        closeButton.setButtonText (tr ("CLOSE"));
+        keyBox.setTooltip (tr ("The key: the chords move with it"));
+        scaleBox.setTooltip (tr ("The scale the chords of the circle are built on"));
+        colourBox.setTooltip (tr ("Triads, 7ths or 9ths: how rich the chords of a progression are"));
+        countBox.setTooltip (tr ("How many chords play, one per bar"));
+        repaint();
     });
+}
+
+juce::Rectangle<float> ProgressionBrowser::card() const
+{
+    return getLocalBounds().toFloat().reduced (14.0f);
+}
+
+juce::Rectangle<float> ProgressionBrowser::categoryBounds (int i) const
+{
+    auto c = card().reduced (20.0f);
+    return { c.getX(), c.getY() + 56.0f + 40.0f * (float) i, 200.0f, 36.0f };
+}
+
+juce::Rectangle<float> ProgressionBrowser::listArea() const
+{
+    auto c = card().reduced (20.0f);
+    return { c.getX() + 216.0f, c.getY() + 56.0f, c.getWidth() - 216.0f - 340.0f, c.getHeight() - 56.0f };
+}
+
+juce::Rectangle<float> ProgressionBrowser::tileBounds (int index) const
+{
+    const auto a = listArea();
+    const float w = (a.getWidth() - 10.0f) / 2.0f, h = 50.0f;
+    return { a.getX() + (w + 10.0f) * (float) (index % 2), a.getY() + (h + 8.0f) * (float) (index / 2), w, h };
+}
+
+std::vector<int> ProgressionBrowser::progressionsOf (int cat) const
+{
+    std::vector<int> list;
+    const auto& all = fgg::progressions();
+    const auto& cats = fgg::progressionCategories();
+    for (size_t i = 0; i < all.size(); ++i)
+        if (juce::isPositiveAndBelow (cat, (int) cats.size()) && juce::String (all[i].category) == cats[(size_t) cat])
+            list.push_back ((int) i);
+    return list;
+}
+
+void ProgressionBrowser::show()
+{
+    const int current = juce::roundToInt (processor.raw (ParamIDs::progression));
+    const auto& cats = fgg::progressionCategories();
+    for (int i = 0; i < (int) cats.size(); ++i)
+        if (juce::String (fgg::progressions()[(size_t) juce::jlimit (0, (int) fgg::progressions().size() - 1, current)].category) == cats[(size_t) i])
+            category = i;
+    scroll = 0.0f;
+    setVisible (true);
+    toFront (true);
+    grabKeyboardFocus();
+    refresh();
+}
+
+void ProgressionBrowser::pick (int progression)
+{
+    processor.applyProgression (progression);
+    refresh();
+}
+
+void ProgressionBrowser::resized()
+{
+    auto c = card().reduced (20.0f);
+    auto right = juce::Rectangle<float> (c.getRight() - 324.0f, c.getY() + 48.0f, 324.0f, c.getHeight() - 48.0f).toNearestInt();
+    circle.setBounds (right.removeFromTop (330));
+    right.removeFromTop (22);
+    auto row1 = right.removeFromTop (28);
+    keyBox.setBounds (row1.removeFromLeft (70));
+    row1.removeFromLeft (6);
+    scaleBox.setBounds (row1);
+    right.removeFromTop (22);
+    auto row2 = right.removeFromTop (28);
+    colourBox.setBounds (row2.removeFromLeft (150));
+    row2.removeFromLeft (6);
+    countBox.setBounds (row2.removeFromLeft (70));
+    right.removeFromTop (14);
+    circleButton.setBounds (right.removeFromTop (32));
+    closeButton.setBounds (right.removeFromBottom (30).removeFromRight (100));
+}
+
+void ProgressionBrowser::refresh()
+{
+    showInMenu (keyBox, juce::roundToInt (processor.raw (ParamIDs::key)) + 1);
+    showInMenu (scaleBox, juce::roundToInt (processor.raw (ParamIDs::scale)) + 1);
+    showInMenu (colourBox, juce::roundToInt (processor.raw (ParamIDs::chordColour)) + 1);
+    showInMenu (countBox, processor.chordCount());
+    updateCircle();
+    repaint();
+}
+
+void ProgressionBrowser::updateCircle()
+{
+    const int key = juce::roundToInt (processor.raw (ParamIDs::key)), scale = juce::roundToInt (processor.raw (ParamIDs::scale));
+    auto isMinor = [] (const fgg::Chord& ch)
+    {
+        const auto t = (fgg::ChordType) ch.type;
+        return t == fgg::ChordType::m7 || t == fgg::ChordType::m9 || t == fgg::ChordType::m11 || t == fgg::ChordType::minor
+            || t == fgg::ChordType::halfDim || t == fgg::ChordType::dim;
+    };
+    static const char* numerals[] { "i", "ii", "iii", "iv", "v", "vi", "vii" };
+    std::vector<CircleOfFifths::ChordMark> diatonic, progression;
+    for (int d = 0; d < 7; ++d)
+    {
+        const auto ch = fgg::diatonicChord (key, scale, d, (int) fgg::ChordColour::triads);
+        juce::String numeral (numerals[d]);
+        if (! isMinor (ch))
+            numeral = numeral.toUpperCase();
+        if ((fgg::ChordType) ch.type == fgg::ChordType::dim)
+            numeral << juce::String::fromUTF8 ("\xc2\xb0");
+        diatonic.push_back ({ ch.root, isMinor (ch), numeral });
+    }
+    const int n = processor.chordCount();
+    std::vector<float> moves;
+    for (int i = 0; i < n; ++i)
+    {
+        const auto ch = processor.chordAt (i), next = processor.chordAt ((i + 1) % n);
+        const float score = fgg::transitionScore (ch, next);
+        progression.push_back ({ ch.root, isMinor (ch), {}, score });
+        moves.push_back (score);
+    }
+    const double ppq = processor.uiPpq.load();
+    const int playing = ppq >= 0.0 ? (int) std::fmod (std::floor (ppq / 4.0), (double) n) : -1;
+    circle.setState (key, fgg::scaleIsMinor (scale), fgg::scaleName (scale), progression, moves, playing, diatonic);
+}
+
+void ProgressionBrowser::paint (juce::Graphics& g)
+{
+    g.fillAll (juce::Colours::black.withAlpha (0.78f));
+    const auto c = card();
+    g.setColour (Palette::panel);
+    g.fillRoundedRectangle (c, 10.0f);
+    g.setColour (Palette::panelEdge.brighter (0.3f));
+    g.drawRoundedRectangle (c, 10.0f, 1.0f);
+
+    auto inner = c.reduced (20.0f);
+    g.setColour (Palette::accent);
+    g.setFont (font (20.0f, true));
+    g.drawText (Localisation::upper (tr ("Chord progressions")), inner.removeFromTop (30.0f), juce::Justification::centredLeft);
+    g.setColour (Palette::dim);
+    g.setFont (font (12.0f));
+    g.drawText (tr ("Pick a category, click a progression: its chords load at once, in the key.  Arrows: previous / next."),
+                inner.removeFromTop (18.0f), juce::Justification::centredLeft);
+
+    const auto& cats = fgg::progressionCategories();
+    for (int i = 0; i < (int) cats.size(); ++i)
+    {
+        auto r = categoryBounds (i);
+        const bool on = i == category;
+        g.setColour (on ? Palette::accent : Palette::control);
+        g.fillRoundedRectangle (r, 5.0f);
+        g.setColour (on ? Palette::background : Palette::text);
+        g.setFont (font (13.0f, on));
+        g.drawText (cats[(size_t) i], r.reduced (12.0f, 0.0f), juce::Justification::centredLeft);
+        g.setColour (on ? Palette::background.withAlpha (0.7f) : Palette::dim);
+        g.setFont (font (11.0f));
+        g.drawText (juce::String ((int) progressionsOf (i).size()), r.reduced (12.0f, 0.0f), juce::Justification::centredRight);
+    }
+
+    // Captions over the key, scale, colour and number of chords.
+    g.setColour (Palette::dim);
+    g.setFont (font (10.5f, true));
+    for (auto [box, text] : { std::pair<juce::Component*, const char*> { &keyBox, "Key" }, { &scaleBox, "Scale" }, { &colourBox, "Colour" }, { &countBox, "Chords" } })
+        g.drawText (Localisation::upper (tr (text)), box->getBounds().translated (0, -15).withHeight (14), juce::Justification::centredLeft);
+
+    // The progressions of the category, with their chords in the key.
+    const int key = juce::roundToInt (processor.raw (ParamIDs::key)), colour = juce::roundToInt (processor.raw (ParamIDs::chordColour));
+    const int current = juce::roundToInt (processor.raw (ParamIDs::progression));
+    const auto area = listArea();
+    juce::Graphics::ScopedSaveState clip (g);
+    g.reduceClipRegion (area.toNearestInt());
+    const auto list = progressionsOf (category);
+    for (int k = 0; k < (int) list.size(); ++k)
+    {
+        auto r = tileBounds (k).translated (0.0f, -scroll);
+        if (! r.intersects (area))
+            continue;
+        const int index = list[(size_t) k];
+        const bool on = index == current;
+        g.setColour (k == hover ? Palette::control.brighter (0.08f) : Palette::field);
+        g.fillRoundedRectangle (r, 6.0f);
+        g.setColour (on ? Palette::accent : Palette::panelEdge);
+        g.drawRoundedRectangle (r.reduced (0.5f), 6.0f, on ? 2.0f : 1.0f);
+        auto t = r.reduced (10.0f, 6.0f);
+        g.setColour (on ? Palette::accent : Palette::text);
+        g.setFont (font (12.5f, true));
+        g.drawFittedText (fgg::progressions()[(size_t) index].name, t.removeFromTop (18.0f).toNearestInt(), juce::Justification::centredLeft, 1, 0.7f);
+        juce::StringArray names;
+        for (const auto& ch : fgg::progressionChords (index, key, colour))
+            names.add (fgg::chordName (ch));
+        g.setColour (Palette::accent2);
+        g.setFont (font (12.0f));
+        g.drawFittedText (names.joinIntoString ("  "), t.toNearestInt(), juce::Justification::centredLeft, 1, 0.6f);
+    }
+}
+
+void ProgressionBrowser::mouseDown (const juce::MouseEvent& e)
+{
+    if (! card().contains (e.position))
+    {
+        setVisible (false);
+        return;
+    }
+    for (int i = 0; i < (int) fgg::progressionCategories().size(); ++i)
+        if (categoryBounds (i).contains (e.position))
+        {
+            category = i;
+            hover = -1;
+            scroll = 0.0f;
+            repaint();
+            return;
+        }
+    if (! listArea().contains (e.position))
+        return;
+    const auto list = progressionsOf (category);
+    for (int k = 0; k < (int) list.size(); ++k)
+        if (tileBounds (k).translated (0.0f, -scroll).contains (e.position))
+        {
+            pick (list[(size_t) k]);
+            if (e.getNumberOfClicks() > 1)
+                setVisible (false);
+            return;
+        }
+}
+
+void ProgressionBrowser::mouseMove (const juce::MouseEvent& e)
+{
+    int now = -1;
+    const auto list = progressionsOf (category);
+    if (listArea().contains (e.position))
+        for (int k = 0; k < (int) list.size(); ++k)
+            if (tileBounds (k).translated (0.0f, -scroll).contains (e.position))
+                now = k;
+    if (now != hover)
+    {
+        hover = now;
+        repaint();
+    }
+}
+
+void ProgressionBrowser::mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& wheel)
+{
+    const auto list = progressionsOf (category);
+    const float content = list.empty() ? 0.0f : tileBounds ((int) list.size() - 1).getBottom() - listArea().getY();
+    scroll = juce::jlimit (0.0f, juce::jmax (0.0f, content - listArea().getHeight()), scroll - wheel.deltaY * 120.0f);
+    repaint();
+}
+
+bool ProgressionBrowser::keyPressed (const juce::KeyPress& key)
+{
+    if (key == juce::KeyPress::escapeKey)
+    {
+        setVisible (false);
+        return true;
+    }
+    const auto list = progressionsOf (category);
+    if (list.empty())
+        return false;
+    const int current = juce::roundToInt (processor.raw (ParamIDs::progression));
+    auto it = std::find (list.begin(), list.end(), current);
+    const int at = it == list.end() ? -1 : (int) (it - list.begin());
+    const int n = (int) list.size();
+    if (key == juce::KeyPress::rightKey || key == juce::KeyPress::downKey)
+    {
+        pick (list[(size_t) ((at + 1) % n)]);
+        return true;
+    }
+    if (key == juce::KeyPress::leftKey || key == juce::KeyPress::upKey)
+    {
+        pick (list[(size_t) ((at - 1 + n) % n)]);
+        return true;
+    }
+    return false;
 }
 
 //==============================================================================
@@ -3245,6 +3564,8 @@ FaseGrooveGuitarEditor::FaseGrooveGuitarEditor (FaseGrooveGuitarProcessor& p)
     content.addChildComponent (editOverlay);
     content.addChildComponent (songOverlay);
     content.addChildComponent (browser);
+    content.addChildComponent (progressionBrowser);
+    chordPanel.onBrowse = [this] { progressionBrowser.show(); };
     content.addChildComponent (options);
     content.addChildComponent (updateOverlay);
 
@@ -3489,6 +3810,7 @@ bool FaseGrooveGuitarEditor::Content::keyPressed (const juce::KeyPress& key)
         editor.options.setVisible (false);
         editor.songOverlay.setVisible (false);
         editor.browser.setVisible (false);
+        editor.progressionBrowser.setVisible (false);
         editor.editOverlay.setVisible (false);
         return true;
     }
@@ -3611,6 +3933,7 @@ void FaseGrooveGuitarEditor::layout()
 
     songOverlay.setBounds (content.getLocalBounds());
     browser.setBounds (content.getLocalBounds());
+    progressionBrowser.setBounds (content.getLocalBounds());
     options.setBounds (content.getLocalBounds());
     updateOverlay.setBounds (content.getLocalBounds());
 }
@@ -3820,6 +4143,8 @@ void FaseGrooveGuitarEditor::timerCallback()
         lights[(size_t) l] = juce::jmax (processor.laneFlash[(size_t) l].exchange (0.0f), lights[(size_t) l] * 0.8f);
     grid.setLights (lights, selectedLane);
     chordPanel.refresh();
+    if (progressionBrowser.isVisible())
+        progressionBrowser.refresh();
 
     overview.refresh();
     miniMixer.repaint();

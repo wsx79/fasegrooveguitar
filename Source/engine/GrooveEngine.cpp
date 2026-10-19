@@ -153,7 +153,10 @@ GuitarSettings::GuitarSettings() noexcept
         userRoll[(size_t) l].fill (0);
         customFill[(size_t) l].fill ('.');
     }
-    chords = progressionChords (genreProgression (0), 9);
+    const auto first = progressionChords (genreProgression (0), 9);
+    numChords = (int) first.size();
+    for (size_t i = 0; i < chords.size(); ++i)
+        chords[i] = first[i % first.size()];
     grooveTemplate.level.fill (1.0f);
 }
 
@@ -170,7 +173,7 @@ ChordTones GrooveEngine::chordAt (const GuitarSettings& s, long long bar) noexce
 {
     if (s.useLiveChord && s.liveChord.mask != 0)
         return s.liveChord;
-    return tonesOf (s.chords[(size_t) mod (bar, 4)]);
+    return tonesOf (s.chords[(size_t) mod (bar, std::clamp (s.numChords, 1, maxChords))]);
 }
 
 GuitarPattern GrooveEngine::basePattern (const GuitarSettings& s)
@@ -223,10 +226,21 @@ int GrooveEngine::loopLengthInSteps (const GuitarSettings& s) noexcept
     int steps = patternLength (s);
     if (! s.useLiveChord)
     {
-        // The chords come round after one, two or four bars.
-        int chordBars = 4;
-        if (s.chords[0] == s.chords[2] && s.chords[1] == s.chords[3])
-            chordBars = s.chords[0] == s.chords[1] ? 1 : 2;
+        // The chords come round after numChords bars (or fewer, when they repeat inside).
+        const int n = std::clamp (s.numChords, 1, maxChords);
+        int chordBars = n;
+        for (int period = 1; period < n; ++period)
+            if (n % period == 0)
+            {
+                bool repeats = true;
+                for (int i = period; i < n && repeats; ++i)
+                    repeats = s.chords[(size_t) i] == s.chords[(size_t) (i % period)];
+                if (repeats)
+                {
+                    chordBars = period;
+                    break;
+                }
+            }
         steps = lcm (steps, chordBars * 16);
     }
     if (s.variationEvery > 0)

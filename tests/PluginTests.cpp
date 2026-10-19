@@ -612,6 +612,20 @@ namespace
         auto click = [&] (const juce::String& text) { if (auto* b = findButton (*editor, tr (text)); b != nullptr && b->onClick) b->onClick(); };
 
         save ("1-main");
+        click ("PROGRESSION...");
+        save ("1c-progressions");
+        std::function<void (juce::Component&)> hideBrowsers = [&] (juce::Component& c)
+        {
+            for (auto* child : c.getChildren())
+            {
+                if (dynamic_cast<ProgressionBrowser*> (child) != nullptr)
+                    child->setVisible (false);
+                hideBrowsers (*child);
+            }
+        };
+        hideBrowsers (*editor);
+        click ("EDITOR...");
+        save ("1b-editor");
         click ("VELOCITY");
         save ("2-velocity");
         click ("MIXER");
