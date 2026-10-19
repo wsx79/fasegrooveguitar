@@ -2,6 +2,8 @@
 
 *🇮🇹 [Guida in italiano](GUIDA.md)*
 
+This guide covers [v0.3.4](https://github.com/wsx79/fasegrooveguitar/releases/tag/v0.3.4). The existing controls and their positions are retained; shared buttons, menus and colours have a common style.
+
 ## 1. Installation
 
 **Windows:** run `FaseGrooveGuitar-Windows-Setup.exe` from the

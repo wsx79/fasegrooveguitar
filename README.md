@@ -21,13 +21,15 @@
 
 ---
 
+**Current release: [v0.3.4](https://github.com/wsx79/fasegrooveguitar/releases/tag/v0.3.4).** The existing layout and all controls are retained; common buttons, menus and colours follow the same family style.
+
 **Fase Groove Guitar** is the guitar of the Fase Groove family, next to
 [Fase Groove Piano](https://github.com/wsx79/fasegroovepiano) and
 [Fase Groove Drums](https://github.com/wsx79/fasegroovedrums): a VST3/AU instrument that
 **writes MIDI guitar parts** in the same 13 house genres. Pick a groove (or roll a new one) and the
 chords, shape the feel with swing, humanize and the strum, add fills and variations, listen with the
 built-in guide guitar, then **drag it into your DAW as a MIDI clip** and play it with your own
-guitar instrument. Same interface as the piano and the drums, and **LINK** plays all three
+guitar instrument. Common controls share the same style as Piano and Drums, and **LINK** plays all three
 together.
 
 ## Features
