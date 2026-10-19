@@ -1480,6 +1480,13 @@ juce::File FaseGrooveGuitarProcessor::leadFile()
     return linkFile().getSiblingFile ("GuitarLead.xml");
 }
 
+void FaseGrooveGuitarProcessor::setKeyLinked (bool on)
+{
+    keyLinked = on;
+    linkShared = {};   // switched on: this key goes out to the others
+    updateLink();
+}
+
 void FaseGrooveGuitarProcessor::setLeadMode (bool on)
 {
     leadMode = on;
@@ -1542,6 +1549,11 @@ FaseGrooveGuitarProcessor::LinkState FaseGrooveGuitarProcessor::localLinkState()
     s.playing = previewOn.load();
     s.paused = ! s.playing && ! previewFromStart.load();
     s.anchor = s.playing ? linkAnchor.load() : -1.0;
+    if (keyLinked.load())
+    {
+        s.key = juce::roundToInt (raw (ParamIDs::key));
+        s.scale = juce::roundToInt (raw (ParamIDs::scale));
+    }
     return s;
 }
 
@@ -1610,6 +1622,12 @@ void FaseGrooveGuitarProcessor::updateLink()
                             }
                     setParameterFromUI (ParamIDs::genre, (float) theirs);
                 }
+                if (keyLinked.load() && xml->hasAttribute ("key"))   // the same key (the chords move the shortest way)
+                {
+                    setKey (xml->getIntAttribute ("key"));
+                    if (xml->hasAttribute ("scale"))
+                        setParameterFromUI (ParamIDs::scale, (float) juce::jlimit (0, fgg::numScales - 1, xml->getIntAttribute ("scale")));
+                }
                 if (xml->hasAttribute ("swing"))
                     setParameterFromUI (ParamIDs::swing, juce::jlimit (0.0f, 1.5f, (float) xml->getDoubleAttribute ("swing")));
                 if (xml->hasAttribute ("bpm"))
@@ -1658,6 +1676,11 @@ void FaseGrooveGuitarProcessor::updateLink()
     xml.setAttribute ("playing", now.playing);
     xml.setAttribute ("paused", now.paused);
     xml.setAttribute ("anchor", juce::String (now.anchor, 3));
+    if (now.key >= 0)
+    {
+        xml.setAttribute ("key", now.key);
+        xml.setAttribute ("scale", now.scale);
+    }
     file.getParentDirectory().createDirectory();
     if (xml.writeTo (file))
         linkSeenText = file.loadFileAsString();
@@ -1717,6 +1740,7 @@ juce::ValueTree FaseGrooveGuitarProcessor::stateTree() const
     juce::ValueTree link ("Link");
     link.setProperty ("on", linkOn.load(), nullptr);
     link.setProperty ("lead", leadMode.load(), nullptr);
+    link.setProperty ("key", keyLinked.load(), nullptr);
     juce::String locks;
     for (bool b : segmentLocked)
         locks << (b ? "1" : "0");
@@ -1790,6 +1814,7 @@ void FaseGrooveGuitarProcessor::applyStateTree (const juce::ValueTree& source)
     if (const auto link = state.getChildWithName ("Link"); link.isValid())
     {
         leadMode = (bool) link.getProperty ("lead", false);
+        keyLinked = (bool) link.getProperty ("key", false);
         setLinked ((bool) link.getProperty ("on", false));
         writeLead();
     }

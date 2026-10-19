@@ -4,6 +4,11 @@
 
 All notable changes to **Fase Groove Guitar**.
 
+## [0.3.1] - 2026-10-19
+
+- **KEY** beside Sequencer (with LINK on): the same key and scale as Fase Groove Piano; the chords move the shortest way. The panel's title is now just TEMPO.
+- Dragging a clip: the window shrinks at once to the small strip of Fase Groove Piano (it waited for the drop before, so it often didn't), and comes back by itself.
+
 ## [0.3.0] - 2026-10-19
 
 - **LEAD** (in the guitar part's heading, with LINK on): the guitar plays the main riff and a linked Fase Groove Piano only fills in a chord now and then. Off, or without LINK, nothing changes.

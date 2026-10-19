@@ -660,7 +660,8 @@ private:
     DragTile dragTile;
     juce::TextButton saveButton { "SAVE .MID..." }, songButton { "FULL SONG..." }, wavButton { "SAVE .WAV..." };
     juce::TextButton linkButton { "LINK" };
-    juce::TextButton leadButton { "LEAD" };   // the guitar leads, a linked piano fills in (only while linked)
+    juce::TextButton leadButton { "LEAD" };
+    juce::TextButton keyLinkButton { "KEY" };   // the same key in the linked plug-ins (only while linked)   // the guitar leads, a linked piano fills in (only while linked)
     std::unique_ptr<juce::FileChooser> chooser;
 
     SongOverlay songOverlay { processor };
@@ -691,6 +692,7 @@ private:
     };
     MiniStrip miniStrip;
     bool miniMode = false;
+    juce::uint32 miniStartedAt = 0;
     juce::Point<int> fullSize;
     // Undo history: a snapshot only after the mouse has changed something (not polled).
     int pendingSnapshot = 0;

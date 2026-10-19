@@ -4,6 +4,11 @@
 
 Tutte le modifiche importanti di **Fase Groove Guitar**.
 
+## [0.3.1] - 2026-10-19
+
+- **TONALITÀ** accanto a Sequencer (con LINK attivo): stessa tonalità e scala di Fase Groove Piano; gli accordi si spostano per la via più corta. Il titolo del riquadro ora è solo TEMPO.
+- Trascinando una clip la finestra si riduce subito alla piccola striscia di Fase Groove Piano (prima aspettava il rilascio, quindi spesso non succedeva) e torna grande da sola.
+
 ## [0.3.0] - 2026-10-19
 
 - **SOLISTA** (nell'intestazione della parte di chitarra, con LINK attivo): la chitarra suona il riff principale e Fase Groove Piano collegato aggiunge solo qualche accordo ogni tanto. Spento, o senza LINK, non cambia nulla.

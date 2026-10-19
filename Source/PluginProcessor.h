@@ -195,6 +195,10 @@ public:
         only fills in a chord now and then instead of its whole pattern. Off: nothing changes. */
     void setLeadMode (bool on);
     bool isLeadMode() const noexcept { return leadMode.load(); }
+
+    /** KEY (with LINK on): the same key and scale in every linked plug-in that has KEY on. */
+    void setKeyLinked (bool on);
+    bool isKeyLinked() const noexcept { return keyLinked.load(); }
     static juce::File leadFile();   // beside the link file: who leads, refreshed while it does
 
     /** Velocity shapes for one lane (what makes a strum groove): the levels of its hits are set by hand. */
@@ -334,9 +338,10 @@ private:
         float swing = -1.0f, bpm = -1.0f;
         bool sync = false, playing = false, paused = false;
         double anchor = -1.0;
+        int key = -1, scale = -1;   // shared only with KEY on (-1: not shared)
         bool sameAs (const LinkState& o) const noexcept
         {
-            return genre == o.genre && std::abs (swing - o.swing) < 0.001f && std::abs (bpm - o.bpm) < 0.01f && sync == o.sync
+            return genre == o.genre && key == o.key && scale == o.scale && std::abs (swing - o.swing) < 0.001f && std::abs (bpm - o.bpm) < 0.01f && sync == o.sync
                 && playing == o.playing && paused == o.paused && std::abs (anchor - o.anchor) < 1.0;
         }
     };
@@ -353,6 +358,7 @@ private:
     };
     LinkTimer linkTimer { *this };
     std::atomic<bool> leadMode { false };
+    std::atomic<bool> keyLinked { false };
     double leadWrittenAt = 0.0;
     void writeLead();
     int baseStep (int displayedStep) const;   // the step of the user pattern shown at a displayed step

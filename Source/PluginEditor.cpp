@@ -1351,7 +1351,7 @@ void DragTile::mouseDrag (const juce::MouseEvent& e)
     repaint();
     juce::Component::SafePointer<FaseGrooveGuitarEditor> editor (findParentComponentOfClass<FaseGrooveGuitarEditor>());
     if (editor != nullptr)
-        juce::MessageManager::callAsync ([editor] { if (editor != nullptr) editor->enterMiniMode(); });
+        editor->enterMiniMode();   // at once, as Fase Groove Piano (a deferred call may wait for the drop)
     juce::Component::SafePointer<DragTile> safe (this);
     juce::DragAndDropContainer::performExternalDragDropOfFiles (files, false, this, [safe, editor]
     {
@@ -3370,6 +3370,11 @@ FaseGrooveGuitarEditor::FaseGrooveGuitarEditor (FaseGrooveGuitarProcessor& p)
     Localisation::bindTip (leadButton, "Guitar leads (with LINK on): the guitar plays the main riff and Fase Groove Piano only fills in a chord now and then");
     leadButton.onClick = [this] { processor.setLeadMode (leadButton.getToggleState()); };
     show (leadButton);
+    keyLinkButton.setClickingTogglesState (true);
+    keyLinkButton.setColour (juce::TextButton::buttonOnColourId, Palette::accent2.darker (0.3f));
+    Localisation::bindTip (keyLinkButton, "Same key (with LINK on): the key and the scale stay the same in Fase Groove Piano and Guitar (change them in either one)");
+    keyLinkButton.onClick = [this] { processor.setKeyLinked (keyLinkButton.getToggleState()); };
+    show (keyLinkButton);
     for (juce::Component* c : std::initializer_list<juce::Component*> { &grooveButton, &prevGroove, &nextGroove, &genreCombo, &newBeatButton, &densitySlider,
                                                                         &partLengthCombo, &linkButton })
         show (*c);
@@ -3642,7 +3647,7 @@ FaseGrooveGuitarEditor::FaseGrooveGuitarEditor (FaseGrooveGuitarProcessor& p)
              { &gridTab, "STEP GRID" }, { &velocityTab, "VELOCITY" }, { &mixerTab, "MIXER" }, { &clearButton, "CLEAR" },
              { &myGroovesButton, "MY GROOVES" }, { &saveButton, "SAVE .MID..." }, { &songButton, "FULL SONG..." },
              { &fillTab, "FILL" }, { &templateButton, "TEMPLATE..." }, { &timingButton, "TIMING..." }, { &wavButton, "SAVE .WAV..." },
-             { &linkButton, "LINK" }, { &leadButton, "LEAD" } })
+             { &linkButton, "LINK" }, { &leadButton, "LEAD" }, { &keyLinkButton, "KEY" } })
         Localisation::bindText (*b, english);
     Localisation::bind (content, [this] { content.repaint(); options.refreshText(); translateHostWindow(); });
 
@@ -3746,8 +3751,8 @@ void FaseGrooveGuitarEditor::MiniStrip::paint (juce::Graphics& g)
     g.setColour (Palette::accent);
     g.fillRoundedRectangle (r, 8.0f);
     g.setColour (Palette::background);
-    g.setFont (font (15.0f, true));
-    g.drawFittedText (tr ("Drop the clip on a track"), r.reduced (10.0f, 4.0f).toNearestInt(), juce::Justification::centred, 2, 0.8f);
+    g.setFont (font (12.0f, true));
+    g.drawFittedText (tr ("Drop the clip on a track"), r.reduced (8.0f, 2.0f).toNearestInt(), juce::Justification::centred, 1, 0.8f);
 }
 
 void FaseGrooveGuitarEditor::enterMiniMode()
@@ -3755,13 +3760,14 @@ void FaseGrooveGuitarEditor::enterMiniMode()
     if (miniMode || isFullScreen())
         return;
     miniMode = true;
+    miniStartedAt = juce::Time::getMillisecondCounter();
     fullSize = { getWidth(), getHeight() };
     content.setAlpha (0.0f);   // still there (the drag belongs to its tile), not seen
     addAndMakeVisible (miniStrip);
     miniStrip.toFront (false);
     getConstrainer()->setFixedAspectRatio (0.0);
-    setResizeLimits (120, 40, designWidth * 2, designHeight * 2);
-    setSize (280, 64);
+    setResizeLimits (120, 20, designWidth * 2, designHeight * 2);
+    setSize (240, 28);   // the strip of Fase Groove Piano
 }
 
 void FaseGrooveGuitarEditor::exitMiniMode()
@@ -3896,8 +3902,9 @@ void FaseGrooveGuitarEditor::layout()
 
     tempoArea = { 520, 18, 330, 68 };
     sequencerToggle.setBounds (734, 24, 104, 18);
-    linkButton.setBounds (664, 24, 64, 18);
-    leadButton.setBounds (214, 237, 88, 20);   // in the guitar part's heading, easy to see
+    linkButton.setBounds (590, 24, 66, 18);
+    keyLinkButton.setBounds (660, 24, 70, 18);   // KEY, beside Sequencer
+    leadButton.setBounds (214, 237, 88, 20);     // in the guitar part's heading, easy to see
     rewindButton.setBounds (532, 48, 34, 30);
     playButton.setBounds (566, 48, 40, 30);
     stopButton.setBounds (606, 48, 34, 30);
@@ -4024,7 +4031,7 @@ void FaseGrooveGuitarEditor::paintContent (juce::Graphics& g)
     g.fillRoundedRectangle ((float) tempoArea.getX() + 12.0f, (float) tempoArea.getY() + 9.0f, 3.0f, 12.0f, 1.0f);
     g.setColour (Palette::text.withAlpha (0.92f));
     g.setFont (font (11.5f, true));
-    g.drawFittedText (Localisation::upper (tr ("TRANSPORT & TEMPO")), { tempoArea.getX() + 21, tempoArea.getY() + 5, 122, 20 }, juce::Justification::centredLeft, 1, 0.7f);
+    g.drawFittedText (Localisation::upper (tr ("TEMPO")), { tempoArea.getX() + 21, tempoArea.getY() + 5, 122, 20 }, juce::Justification::centredLeft, 1, 0.7f);
 
     // The display: the groove playing, its genre, the section and where the playhead is.
     box (displayArea);
@@ -4199,6 +4206,15 @@ void FaseGrooveGuitarEditor::stepGroove (int delta)
 
 void FaseGrooveGuitarEditor::timerCallback()
 {
+    if (miniMode)
+    {
+        // Safety net (as Fase Groove Piano): back to full size once the drag is over, even if
+        // the drop was never reported.
+        if (juce::Time::getMillisecondCounter() - miniStartedAt > 800
+            && ! juce::ModifierKeys::getCurrentModifiersRealtime().isAnyMouseButtonDown())
+            exitMiniMode();
+        return;
+    }
     // The light, cheap things 30 times a second; the rest 10 times.
     const bool slowTick = (++uiTicks % 3) == 0;
     if (slowTick)
@@ -4234,6 +4250,9 @@ void FaseGrooveGuitarEditor::timerCallback()
     leadButton.setToggleState (processor.isLeadMode(), juce::dontSendNotification);
     leadButton.setEnabled (processor.isLinked());   // it works only with LINK on
     leadButton.setAlpha (processor.isLinked() ? 1.0f : 0.4f);
+    keyLinkButton.setToggleState (processor.isKeyLinked(), juce::dontSendNotification);
+    keyLinkButton.setEnabled (processor.isLinked());
+    keyLinkButton.setAlpha (processor.isLinked() ? 1.0f : 0.4f);
     templateButton.setToggleState (processor.hasGrooveTemplate(), juce::dontSendNotification);
     mainTemplate.setToggleState (processor.hasGrooveTemplate(), juce::dontSendNotification);
     mainTemplate.setColour (juce::TextButton::buttonOnColourId, Palette::accent.darker (0.35f));

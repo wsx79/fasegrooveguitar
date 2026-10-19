@@ -718,6 +718,33 @@ namespace
     void testLinkRoles()
     {
         using P = FaseGrooveGuitarProcessor;
+        // KEY: another plug-in's key arrives only with KEY on (the chords move with it).
+        {
+            const auto link = P::linkFile();
+            const bool existed = link.existsAsFile();
+            const auto backup = link.loadFileAsString();
+            auto writeTheirs = [&link] (int key)
+            {
+                juce::XmlElement xml ("FaseGrooveLink");
+                xml.setAttribute ("instance", "someone else");
+                xml.setAttribute ("key", key);
+                xml.setAttribute ("scale", 2);
+                xml.writeTo (link);
+            };
+            P p;
+            p.setLinked (true);
+            const int before = juce::roundToInt (p.raw (ParamIDs::key));
+            writeTheirs ((before + 3) % 12);
+            p.updateLink();
+            CHECK (juce::roundToInt (p.raw (ParamIDs::key)) == before);
+            p.setKeyLinked (true);
+            writeTheirs ((before + 5) % 12);
+            p.updateLink();
+            CHECK (juce::roundToInt (p.raw (ParamIDs::key)) == (before + 5) % 12);
+            p.setLinked (false);
+            if (existed) link.replaceWithText (backup); else link.deleteFile();
+        }
+
         // LEAD: written beside the link file only while linked, cleared when switched off.
         const auto lead = P::leadFile();
         const bool existed = lead.existsAsFile();
