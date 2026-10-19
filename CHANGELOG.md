@@ -9,7 +9,7 @@ All notable changes to **Fase Groove Guitar**.
 The first version: the guitar of the Fase Groove family, with the same interface as
 Fase Groove Piano and Fase Groove Drums.
 
-- **42 guitar grooves in 13 genres** (the same as the piano and the drums): offbeat chords, house
+- **43 guitar grooves in 13 genres** (the same as the piano and the drums): offbeat chords, house
   strummers, the Nile Rodgers chicken scratch, disco octaves, highlife picking, montunos, two-step
   chops, gospel strums, neo soul licks, chill swells, dance power chords...
 - **12 ways to play a chord**, one per row of the grid: down strum, up strum, stab, chank, muted

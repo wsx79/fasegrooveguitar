@@ -35,7 +35,7 @@ The same layout as Fase Groove Piano and Fase Groove Drums:
 
 ## 3. The groove
 
-- **GROOVE:** 42 grooves in 13 genres (the same as Fase Groove Piano and Drums); click its name for
+- **GROOVE:** 43 grooves in 13 genres (the same as Fase Groove Piano and Drums); click its name for
   the browser (genres on the left, each groove with a picture of its rhythm). **Random groove** is
   the one of NEW GROOVE, **User pattern** the one edited on the grid.
 - **RANDOM / GROOVE (dice):** a new random groove in the genre chosen in **GROOVE GENRE**.

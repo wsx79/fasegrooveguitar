@@ -32,7 +32,7 @@ tutti e tre insieme.
 
 ## Funzioni
 
-- 🎸 **42 groove in 13 generi**, gli stessi di Fase Groove Piano e Drums: Piano House, Soulful,
+- 🎸 **43 groove in 13 generi**, gli stessi di Fase Groove Piano e Drums: Piano House, Soulful,
   Deep, Gospel, Jackin', Jackin' Piano, Garage & UK, Afro & Latin, Funky & Disco, '90s Piano House,
   Neo Soul & Broken, Chill & Pads, Dance Stabs. Accordi in levare, il chicken scratch alla Nile
   Rodgers, ottave disco, arpeggi highlife, chop two-step, swell...

@@ -9,7 +9,7 @@ Tutte le modifiche importanti di **Fase Groove Guitar**.
 La prima versione: la chitarra della famiglia Fase Groove, con la stessa interfaccia di
 Fase Groove Piano e Fase Groove Drums.
 
-- **42 groove di chitarra in 13 generi** (gli stessi del piano e della batteria): accordi in levare,
+- **43 groove di chitarra in 13 generi** (gli stessi del piano e della batteria): accordi in levare,
   pennate house, il chicken scratch alla Nile Rodgers, ottave disco, arpeggi highlife, montuno,
   chop two-step, pennate gospel, lick neo soul, swell chill, power chord dance...
 - **12 modi di suonare un accordo**, uno per riga della griglia: pennata giù, pennata su, stab,

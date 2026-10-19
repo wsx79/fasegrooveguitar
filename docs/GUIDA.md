@@ -35,7 +35,7 @@ La stessa disposizione di Fase Groove Piano e Fase Groove Drums:
 
 ## 3. Il groove
 
-- **GROOVE:** 42 groove in 13 generi (gli stessi di Fase Groove Piano e Drums); clicca il nome per il
+- **GROOVE:** 43 groove in 13 generi (gli stessi di Fase Groove Piano e Drums); clicca il nome per il
   browser (generi a sinistra, ogni groove con l'immagine del suo ritmo). **Groove casuale** è quello
   di NUOVO GROOVE, **User pattern** quello modificato nella griglia.
 - **CASUALE / GROOVE (dadi):** un nuovo groove casuale nel genere scelto in **GENERE DEL GROOVE**.

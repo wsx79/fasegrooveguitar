@@ -32,7 +32,7 @@ together.
 
 ## Features
 
-- 🎸 **42 grooves in 13 genres**, the same as Fase Groove Piano and Drums: Piano House, Soulful,
+- 🎸 **43 grooves in 13 genres**, the same as Fase Groove Piano and Drums: Piano House, Soulful,
   Deep, Gospel, Jackin', Jackin' Piano, Garage & UK, Afro & Latin, Funky & Disco, '90s Piano House,
   Neo Soul & Broken, Chill & Pads, Dance Stabs. Offbeat chords, the Nile Rodgers chicken scratch,
   disco octaves, highlife picking, two-step chops, swells...
