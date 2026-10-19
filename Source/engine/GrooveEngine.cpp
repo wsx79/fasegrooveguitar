@@ -591,18 +591,28 @@ void GrooveEngine::render (double startPpq, double endPpq, const GuitarSettings&
     const auto& pattern = patternFor (s);
     pending.clear();
 
-    // Swing, a template, a lane pulled behind, humanize and the strum delay a note (by < 3
-    // steps), so look back a little; a lane pushed ahead and a slide's grace notes come before
-    // their step, so look ahead too.
-    const auto firstStep = (long long) std::floor (startPpq / stepLength) - 3;
-    const auto lastStep  = (long long) std::floor (endPpq / stepLength) + 2;
+    // Include every delayed string, even for a slow rake at the fastest host tempo.
+    // The extra beat covers swing, rolls and humanization; shifts are expressed in ms.
+    const double beatsPerMs = std::clamp (s.tempo, 20.0, 400.0) / 60000.0;
+    double templateDelay = 0.0;
+    if (s.grooveTemplate.active)
+        for (float timing : s.grooveTemplate.timing)
+            templateDelay = std::max (templateDelay, (double) timing * stepLength * 2.0);
+    const double maxDelay = 1.0 + templateDelay + beatsPerMs
+        * (40.0 + 6.0 * 2.6 * std::clamp ((double) s.strumMs, 0.0, 60.0));
+    const auto firstStep = (long long) std::floor ((startPpq - maxDelay) / stepLength);
+    // A negative template plus a 40 ms push and slide grace notes can precede three steps.
+    const auto lastStep  = (long long) std::floor (endPpq / stepLength) + 3;
     for (auto step = firstStep; step <= lastStep; ++step)
         collectStep (step, s, pattern, cachedVariation);
 
     pending.erase (std::remove_if (pending.begin(), pending.end(),
                                    [&] (const PendingOn& p) { return p.ppq < startPpq || p.ppq >= endPpq || p.note < 0 || p.note > 127; }),
                    pending.end());
-    std::stable_sort (pending.begin(), pending.end(), [] (const PendingOn& a, const PendingOn& b) { return a.ppq < b.ppq; });
+    for (size_t i = 0; i < pending.size(); ++i)
+        pending[i].order = i;
+    std::sort (pending.begin(), pending.end(), [] (const PendingOn& a, const PendingOn& b)
+    { return a.ppq < b.ppq || (a.ppq == b.ppq && a.order < b.order); });
 
     for (const auto& p : pending)
     {

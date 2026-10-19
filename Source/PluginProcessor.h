@@ -381,10 +381,11 @@ private:
     fgg::GrooveEngine engine;
     std::vector<fgg::NoteEvent> events;
     juce::MidiBuffer outMidi;
+    std::array<int, 128> noteChannels {};   // channel used by each generated note-on
     std::atomic<int> auditionRequest { -1 };   // lane * 128 + velocity
     std::array<int, 8> auditionNotes {};       // the notes of the lane played by hand, until auditionEnd
-    int auditionCount = 0, auditionLane = 0;
-    juce::int64 auditionEnd = 0;
+    int auditionCount = 0, auditionLane = 0, auditionChannel = 1, auditionVelocity = 100;
+    juce::int64 auditionStart = 0, auditionGap = 0, auditionDuration = 0;
 
     GuideGuitar guitar;
     std::vector<GuideGuitar::Event> guideEvents;

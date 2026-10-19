@@ -1,12 +1,12 @@
 # Privacy – Fase Groove Guitar
 
-*Last updated: 18 October 2026 · 🇮🇹 [Versione italiana](PRIVACY.it.md)*
+*Last updated: 19 October 2026 · 🇮🇹 [Versione italiana](PRIVACY.it.md)*
 
 Fase Groove Guitar respects your privacy in the simplest possible way: **it collects nothing**.
 
 - **No personal data** is collected, stored or sent.
 - **No analytics, telemetry, ads or license checks.**
-- **No internet connection at all.**
+- **Optional update check.** On opening, once per session, the plug-in asks GitHub for updates and may download a newer build. GitHub receives the request’s IP address and "FaseGrooveGuitar-Updater" user agent. No grid, MIDI notes, samples or projects are uploaded. Automatic checking is enabled by default and can be disabled in **OPTIONS → SETTINGS**; manual checking remains available.
 - **No account** and no registration.
 
 ## What stays on your computer

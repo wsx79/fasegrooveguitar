@@ -4,6 +4,17 @@
 
 Tutte le modifiche importanti di **Fase Groove Guitar**.
 
+## [0.3.4] - 2026-10-19
+
+- Corretti i colpi anticipati da template e push ai tempi elevati; test di indipendenza dalla dimensione dei blocchi. README e privacy descrivono il controllo aggiornamenti facoltativo già presente.
+- Controlli comuni a Piano, Drums e Guitar: stessi pulsanti, menu, font Inter, focus, stati attivi e colori dei comandi, mantenendo la disposizione attuale.
+- I rilasci MIDI mantengono il canale della nota iniziale, anche cambiando canale durante la riproduzione.
+- I preset vecchi ripristinano i valori predefiniti dei parametri mancanti, senza ereditare il preset precedente.
+- MIDI Start e Song Position Pointer aggiornano la posizione del clock nel blocco corrente.
+- L’ordinamento degli eventi simultanei evita il buffer temporaneo di stable_sort.
+- Gestione dei blocchi audio vuoti senza posizioni di campione non valide.
+- I rake lenti mantengono tutte le corde anche con blocchi piccoli e tempi elevati. L’ascolto manuale conserva lo strum tra blocchi; All Notes Off ferma anche il suono guida.
+
 ## [0.3.3] - 2026-10-19
 
 - TONALITÀ mostra la tonalità ("TONALITÀ  A Dorian"); il riquadro del groove è un po' più stretto per fare spazio. TONALITÀ si può accendere anche prima del LINK: funziona appena collegato.

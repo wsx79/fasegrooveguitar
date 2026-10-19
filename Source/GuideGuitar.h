@@ -72,7 +72,9 @@ public:
             const int at = juce::jlimit (0, numSamples, e.sample);
             renderVoices (buffer, position, at - position);
             position = at;
-            if (e.velocity > 0.0f)
+            if (e.note < 0)
+                allNotesOff();
+            else if (e.velocity > 0.0f)
                 noteOn (e.note, e.velocity, e.lane, laneVolume[(size_t) juce::jlimit (0, fgg::numLanes - 1, e.lane)]);
             else
                 noteOff (e.note);

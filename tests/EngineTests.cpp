@@ -574,8 +574,67 @@ static void testProgressionsAndCircle()
     CHECK (transitionScore ({ 2, (int) ChordType::m7 }, { 7, (int) ChordType::dom7 }) > transitionScore ({ 2, (int) ChordType::m7 }, { 8, (int) ChordType::dom7 }));
 }
 
+
+static void testSlowRakeAcrossBlocks()
+{
+    // A whole clip and small host blocks must contain exactly the same delayed strings.
+    for (double bpm : { 124.0, 400.0 })
+    {
+        GuitarSettings s;
+        s.pattern = userPatternIndex();
+        for (auto& lane : s.user) lane.fill ('.');
+        s.user[(size_t) Lane::strumDown][0] = 'f';
+        s.user[(size_t) Lane::strumDown][16] = 'f';
+        s.strumMs = 40.0f;
+        s.tempo = bpm;
+        s.humanize = 0.0f;
+        s.fillEveryBars = 0;
+        s.variationEvery = 0;
+        const auto whole = GrooveEngine::renderClip (s, 16.0);
+        GrooveEngine engine;
+        std::vector<NoteEvent> small;
+        for (double t = 0.0; t < 16.0; t += 0.037)
+            engine.render (t, std::min (t + 0.037, 16.0), s, small);
+        engine.allNotesOff (16.0, small);
+        CHECK (whole.size() == small.size());
+        for (size_t i = 0; i < std::min (whole.size(), small.size()); ++i)
+            CHECK (whole[i].note == small[i].note && whole[i].velocity == small[i].velocity
+                   && std::abs (whole[i].ppq - small[i].ppq) < 1.0e-8);
+    }
+}
+
+static void testEarlyTemplateHitsAcrossBlocks()
+{
+    GuitarSettings s;
+    s.pattern = userPatternIndex();
+    for (auto& row : s.user) row.fill ('.');
+    const auto lane = (size_t) Lane::slide;
+    for (int step = 3; step < 32; step += 4) s.user[lane][(size_t) step] = 'f';
+    s.tempo = 400.0;
+    s.humanize = 0.0f;
+    s.fillEveryBars = 0;
+    s.variationEvery = 0;
+    s.laneShift[lane] = -40.0f;
+    s.laneSwing[lane] = 2.0f;
+    s.grooveTemplate.active = true;
+    s.grooveTemplate.timing.fill (-0.5f);
+    s.grooveTemplate.level.fill (1.0f);
+    const auto whole = GrooveEngine::renderClip (s, 16.0);
+    GrooveEngine engine;
+    std::vector<NoteEvent> small;
+    for (double t = 0.0; t < 16.0; t += 0.019)
+        engine.render (t, std::min (t + 0.019, 16.0), s, small);
+    engine.allNotesOff (16.0, small);
+    CHECK (whole.size() == small.size());
+    for (size_t i = 0; i < std::min (whole.size(), small.size()); ++i)
+        CHECK (whole[i].note == small[i].note && whole[i].velocity == small[i].velocity
+               && std::abs (whole[i].ppq - small[i].ppq) < 1.0e-8);
+}
+
 int main()
 {
+    testEarlyTemplateHitsAcrossBlocks();
+    testSlowRakeAcrossBlocks();
     testPresets();
     testLanesAndChords();
     testVoicings();
