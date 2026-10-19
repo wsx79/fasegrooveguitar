@@ -3897,18 +3897,18 @@ void FaseGrooveGuitarEditor::layout()
     resetButton.setBounds (352, 60, 60, 26);
     optionsButton.setBounds (416, 60, 100, 26);
 
-    tempoArea = { 520, 18, 330, 68 };
-    sequencerToggle.setBounds (734, 24, 104, 18);
+    tempoArea = { 520, 18, 390, 68 };
+    sequencerToggle.setBounds (794, 24, 104, 18);
     linkButton.setBounds (590, 24, 66, 18);
-    keyLinkButton.setBounds (660, 24, 70, 18);   // KEY, beside Sequencer
+    keyLinkButton.setBounds (660, 24, 130, 18);   // KEY and the key itself, beside Sequencer
     leadButton.setBounds (214, 237, 88, 20);     // in the guitar part's heading, easy to see
     rewindButton.setBounds (532, 48, 34, 30);
     playButton.setBounds (566, 48, 40, 30);
     stopButton.setBounds (606, 48, 34, 30);
     syncButton.setBounds (652, 48, 86, 30);
-    tempoSlider.setBounds (744, 48, 94, 30);
+    tempoSlider.setBounds (744, 48, 154, 30);
     dawTempo.setBounds (tempoSlider.getBounds());
-    displayArea = { 860, 18, 300, 68 };
+    displayArea = { 920, 18, 240, 68 };   // (narrower: room for the key on KEY)
 
     // Groove row (20, 100, 1142, 120)
     grooveButton.setBounds (34, 135, 204, 30);
@@ -4058,7 +4058,7 @@ void FaseGrooveGuitarEditor::paintContent (juce::Graphics& g)
         g.drawText (genre + "   " + juce::String (juce::CharPointer_UTF8 ("\xc2\xb7")) + "   " + (processor.followsHeldChord() ? ChordPanel::nameOf (processor.heldChord())
                                                                          : ChordPanel::nameOf (processor.chordForBar (ppq >= 0.0 ? (long long) std::floor (ppq / 4.0) : 0))),
                     r, juce::Justification::centredLeft);
-        g.drawText (where + "   " + juce::String (processor.lastBpm.load(), 1) + " BPM", r, juce::Justification::centredRight);
+        g.drawText (where, r, juce::Justification::centredRight);   // (the tempo is beside, in TEMPO)
     }
 
     // ---- Panels ----
@@ -4248,8 +4248,14 @@ void FaseGrooveGuitarEditor::timerCallback()
     leadButton.setEnabled (processor.isLinked());   // it works only with LINK on
     leadButton.setAlpha (processor.isLinked() ? 1.0f : 0.4f);
     keyLinkButton.setToggleState (processor.isKeyLinked(), juce::dontSendNotification);
-    keyLinkButton.setEnabled (processor.isLinked());
-    keyLinkButton.setAlpha (processor.isLinked() ? 1.0f : 0.4f);
+    {
+        // KEY shows the key itself: "KEY  A Dorian".
+        const int key = juce::roundToInt (processor.raw (ParamIDs::key));
+        const int scale = juce::roundToInt (processor.raw (ParamIDs::scale));
+        const auto text = tr ("KEY") + "  " + fgg::pitchClassName (key) + " " + tr (fgg::scaleName (scale));
+        if (keyLinkButton.getButtonText() != text)
+            keyLinkButton.setButtonText (text);
+    }
     templateButton.setToggleState (processor.hasGrooveTemplate(), juce::dontSendNotification);
     mainTemplate.setToggleState (processor.hasGrooveTemplate(), juce::dontSendNotification);
     mainTemplate.setColour (juce::TextButton::buttonOnColourId, Palette::accent.darker (0.35f));

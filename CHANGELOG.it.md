@@ -4,6 +4,10 @@
 
 Tutte le modifiche importanti di **Fase Groove Guitar**.
 
+## [0.3.3] - 2026-10-19
+
+- TONALITÀ mostra la tonalità ("TONALITÀ  A Dorian"); il riquadro del groove è un po' più stretto per fare spazio. TONALITÀ si può accendere anche prima del LINK: funziona appena collegato.
+
 ## [0.3.2] - 2026-10-19
 
 - Export più sicuri: ogni .mid (e .wav) si scrive prima in un file temporaneo; quello esistente viene sostituito solo quando il nuovo è completo (disco pieno o permessi mancanti lasciano il file vecchio).
