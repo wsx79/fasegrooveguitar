@@ -167,3 +167,23 @@ piano's MIDI out into the guitar's track (MIDI IN, section 4).
 - **Space:** play / pause. **Ctrl+Z / Ctrl+Shift+Z (Ctrl+Y):** undo / redo.
 - **OPTIONS** (or a click on the logo): language (English, Italiano, Español, Français, Deutsch,
   Português), interface size, tips, automatic updates; **ABOUT**: credits and links.
+
+## 13. Playing with the piano and new in 0.4
+
+- **KEY** (beside Sequencer) shows the key and scale ("KEY  A Dorian"). On in the guitar and in
+  Fase Groove Piano, with LINK on, they keep the same key and scale; the chords move the shortest way.
+  Choosing the relative key (C major to A minor) keeps the chords where they are.
+- **LEAD** (in the GUITAR PART heading, with LINK on): the guitar plays the main riff and a linked
+  Fase Groove Piano only answers now and then, in its grid, piano roll and exported MIDI too.
+- **Real guitar shapes:** every chord is a playable shape (one note per string, within four frets,
+  3rd and 7th always there) and stays close to the chord before.
+- **Strums:** up strums quicker and on the top strings, the middle strings of a down strum loudest,
+  ghost strums on the top strings, a tiny per-string humanize. The chank plays the top two strings.
+- **PLAYING...** (in GUIDE SOUND & MIDI OUT):
+  - *Let ring*: strums sound until the next chord.
+  - *Room for bass & piano*: no low strings, stabs higher.
+  - *Push chord changes*: the last 8th of a bar plays the next chord.
+  - *Keyswitches* for sampled guitars (sustain, palm mute, dead note, slide; notes C-2 to D#1) and
+    CC 11 volume swells, also in the exported per-lane tracks.
+- Slides overlap their target (legato on sampled guitars). Exports are written to a temporary file
+  first: a failed save never loses the old clip.

@@ -172,3 +172,25 @@ del piano alla traccia della chitarra (MIDI IN, sezione 4).
 - **Spazio:** play / pausa. **Ctrl+Z / Ctrl+Shift+Z (Ctrl+Y):** annulla / ripeti.
 - **OPZIONI** (o un clic sul logo): lingua (English, Italiano, Español, Français, Deutsch,
   Português), dimensione dell'interfaccia, suggerimenti, aggiornamenti automatici; **INFO**: crediti e link.
+
+## 13. Suonare con il piano e novità della 0.4
+
+- **TONALITÀ** (accanto a Sequencer) mostra tonalità e scala ("TONALITÀ  A Dorian"). Accesa nella
+  chitarra e in Fase Groove Piano, con LINK attivo, mantiene la stessa tonalità e scala; gli accordi
+  si spostano per la via più corta. Scegliere la relativa (da Do maggiore a La minore) lascia gli
+  accordi dove sono.
+- **SOLISTA** (nell'intestazione PARTE DI CHITARRA, con LINK attivo): la chitarra suona il riff
+  principale e Fase Groove Piano collegato risponde solo ogni tanto, anche nella sua griglia, nel
+  piano roll e nel MIDI esportato.
+- **Forme di chitarra vere:** ogni accordo è una forma suonabile (una nota per corda, entro quattro
+  tasti, terza e settima sempre presenti) e resta vicino all'accordo prima.
+- **Pennate:** in su più veloci e sulle corde alte, le corde centrali della pennata in giù più forti,
+  pennate ghost sulle corde alte, una piccola variazione per corda. Il chank suona le due corde alte.
+- **ESECUZIONE...** (in SUONO GUIDA E MIDI OUT):
+  - *Lascia suonare*: le pennate suonano fino all'accordo dopo.
+  - *Spazio per basso e piano*: niente corde basse, stab più in alto.
+  - *Anticipa i cambi d'accordo*: l'ultimo ottavo della battuta suona l'accordo dopo.
+  - *Keyswitch* per chitarre campionate (sustain, palm mute, nota morta, slide; note da C-2 a D#1) e
+    swell di volume con CC 11, anche nelle tracce per corsia esportate.
+- Gli slide si sovrappongono alla nota d'arrivo (legato nelle chitarre campionate). Gli export si
+  scrivono prima in un file temporaneo: un salvataggio fallito non perde mai la clip vecchia.
