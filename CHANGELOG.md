@@ -4,6 +4,15 @@
 
 All notable changes to **Fase Groove Guitar**.
 
+## [Unreleased]
+
+- **A smaller window and a big editor.** The main window shows the groove at a glance (click it to
+  edit) and, in a second tab, the volume faders; the dice, MY GROOVES, IMPORT, TEMPLATE and CLEAR
+  stay there. **EDITOR...** opens the editor over the whole window, as Fase Groove Piano's piano
+  roll: transport, a brush (accent, hit, ghost, rake), step grid, velocity, mixer and fill. The
+  right-click menu of a step can delete it or move it one 16th left or right.
+- **LINK and PLAY: no more stutters** (the beat goes on block by block, following the shared clock gently).
+
 ## [0.1.0] - 2026-10-19
 
 The first version: the guitar of the Fase Groove family, with the same interface as

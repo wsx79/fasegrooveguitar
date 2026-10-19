@@ -763,7 +763,7 @@ void GuitarGrid::mouseDown (const juce::MouseEvent& e)
     if (e.mods.isShiftDown())                  paintSymbol = 'X';
     else if (e.mods.isAltDown())               paintSymbol = 'g';
     else if (e.mods.isCommandDown())           paintSymbol = 'f';
-    else                                       paintSymbol = fgg::isHit (current) ? '.' : 'x';
+    else                                       paintSymbol = fgg::isHit (current) ? '.' : brush;
     paintCell (lane, step, paintSymbol);
 }
 
@@ -814,7 +814,9 @@ void GuitarGrid::showCellMenu (int lane, int step)
     menu.addItem (2, tr ("Hit (x)"));
     menu.addItem (3, tr ("Ghost note (g)"));
     menu.addItem (4, tr ("Rake (f)"));
-    menu.addItem (5, tr ("Rest"));
+    menu.addItem (5, tr ("Delete"));
+    menu.addItem (6, tr ("Move left"), processor.stepSymbol (lane, step) != '.');
+    menu.addItem (7, tr ("Move right"), processor.stepSymbol (lane, step) != '.');
 
     // How often it plays, and a quick roll of 2-4 strums in the 16th.
     const bool hit = fgg::isHit (processor.stepSymbol (lane, step));
@@ -834,8 +836,21 @@ void GuitarGrid::showCellMenu (int lane, int step)
         static const char symbols[] { 'X', 'x', 'g', 'f', '.' };
         if (safe == nullptr || result < 1)
             return;
+        auto& p = safe->processor;
         if (result <= 5)
-            safe->processor.editStep (lane, step, symbols[result - 1]);
+            p.editStep (lane, step, symbols[result - 1]);
+        else if (result == 6 || result == 7)
+        {
+            // The hit moves one 16th, with its velocity, chance and roll.
+            const int to = (step + (result == 6 ? -1 : 1) + p.steps()) % p.steps();
+            const char symbol = p.stepSymbol (lane, step);
+            const int velocity = p.stepVelocity (lane, step), chance = p.stepChance (lane, step), roll = p.stepRoll (lane, step);
+            p.editStep (lane, step, '.');
+            p.editStep (lane, to, symbol);
+            p.setStepVelocity (lane, to, velocity);
+            p.setStepChance (lane, to, chance);
+            p.setStepRoll (lane, to, roll);
+        }
         else if (result >= 200)
             safe->processor.setStepRoll (lane, step, result - 200);
         else if (result >= 100)
@@ -1256,7 +1271,7 @@ void FillView::mouseDown (const juce::MouseEvent& e)
     if (e.mods.isShiftDown())          paintSymbol = 'X';
     else if (e.mods.isAltDown())       paintSymbol = 'g';
     else if (e.mods.isCommandDown())   paintSymbol = 'f';
-    else                               paintSymbol = fgg::isHit (current) ? '.' : 'x';
+    else                               paintSymbol = fgg::isHit (current) ? '.' : brush;
     paintCell (lane, step, paintSymbol);
 }
 
@@ -2717,6 +2732,172 @@ void ChordPanel::showProgressionMenu()
 }
 
 //==============================================================================
+void GrooveOverview::refresh()
+{
+    pattern = processor.displayedPattern();
+    for (int l = 0; l < fgg::numLanes; ++l)
+        muted[(size_t) l] = processor.isLaneMuted (l);
+    playStep = processor.uiStep.load();
+    repaint();
+}
+
+void GrooveOverview::paint (juce::Graphics& g)
+{
+    const int steps = juce::jmax (1, pattern.length());
+    const float label = 64.0f, rowH = (float) getHeight() / (float) fgg::numLanes;
+    const float cellW = ((float) getWidth() - label) / (float) steps;
+    if (juce::isPositiveAndBelow (playStep, steps))
+    {
+        g.setColour (Palette::accent2.withAlpha (0.14f));
+        g.fillRect (label + cellW * (float) playStep, 0.0f, cellW, (float) getHeight());
+    }
+    for (int l = 0; l < fgg::numLanes; ++l)
+    {
+        const float y = rowH * (float) l;
+        const auto colour = laneColour (l);
+        g.setColour (muted[(size_t) l] ? Palette::dim.withAlpha (0.5f) : Palette::text.withAlpha (0.85f));
+        g.setFont (juce::Font (juce::FontOptions (juce::jmin (10.5f, rowH * 0.8f)).withStyle ("Bold")));
+        g.drawText (tr (fgg::laneShortName (l)), juce::Rectangle<float> (4.0f, y, label - 8.0f, rowH), juce::Justification::centredLeft);
+        const auto& line = pattern.lanes[(size_t) l];
+        for (int s = 0; s < steps; ++s)
+        {
+            auto cell = juce::Rectangle<float> (label + cellW * (float) s, y, cellW, rowH).reduced (0.8f, 0.8f);
+            g.setColour (Palette::panelEdge.withAlpha ((s / 4) % 2 == 0 ? 0.5f : 0.3f));
+            g.fillRect (cell);
+            const char c = s < (int) line.size() ? line[(size_t) s] : '.';
+            if (fgg::isHit (c))
+            {
+                g.setColour (colour.withAlpha ((muted[(size_t) l] ? 0.3f : 1.0f) * (c == 'X' ? 1.0f : c == 'g' ? 0.4f : 0.72f)));
+                g.fillRect (c == 'g' ? cell.withSizeKeepingCentre (cell.getWidth() * 0.5f, cell.getHeight() * 0.5f) : cell);
+            }
+        }
+    }
+    // The parts A-D.
+    g.setColour (Palette::dim.withAlpha (0.6f));
+    for (int k = 1; k < 4; ++k)
+        g.drawVerticalLine (juce::roundToInt (label + cellW * (float) (k * steps / 4)), 0.0f, (float) getHeight());
+}
+
+MiniMixer::MiniMixer (FaseGrooveGuitarProcessor& p) : processor (p)
+{
+    for (int l = 0; l < fgg::numLanes; ++l)
+    {
+        auto* f = faders.add (new juce::Slider (juce::Slider::LinearVertical, juce::Slider::NoTextBox));
+        f->setColour (juce::Slider::trackColourId, laneColour (l));
+        f->setColour (juce::Slider::thumbColourId, Palette::text);
+        f->setColour (juce::Slider::backgroundColourId, Palette::field);
+        f->setDoubleClickReturnValue (true, 0.0);
+        f->setPopupDisplayEnabled (true, true, nullptr);
+        Localisation::bind (*f, [f, l] { f->setTooltip (tr (fgg::laneName (l)) + ": " + tr ("volume in the guide sound (double-click: 0 dB)")); });
+        addAndMakeVisible (f);
+        attachments.add (new juce::AudioProcessorValueTreeState::SliderAttachment (processor.apvts, ParamIDs::laneVolume (l), *f));
+    }
+}
+
+juce::Rectangle<int> MiniMixer::strip (int lane) const
+{
+    const int w = getWidth() / fgg::numLanes;
+    return { lane * w, 0, w, getHeight() };
+}
+
+void MiniMixer::resized()
+{
+    for (int l = 0; l < fgg::numLanes; ++l)
+        faders[l]->setBounds (strip (l).reduced (6, 0).withTrimmedBottom (15));
+}
+
+void MiniMixer::paint (juce::Graphics& g)
+{
+    for (int l = 0; l < fgg::numLanes; ++l)
+    {
+        auto r = strip (l);
+        g.setColour (processor.isLaneMuted (l) ? Palette::dim.withAlpha (0.5f) : Palette::dim);
+        g.setFont (juce::Font (juce::FontOptions (9.5f).withStyle ("Bold")));
+        g.drawFittedText (tr (fgg::laneShortName (l)), r.removeFromBottom (14), juce::Justification::centred, 1, 0.6f);
+    }
+}
+
+EditorOverlay::EditorOverlay()
+{
+    for (juce::Button* b : std::initializer_list<juce::Button*> { &rewindButton, &playButton, &stopButton, &closeButton,
+                                                                  &accentBrush, &hitBrush, &ghostBrush, &flamBrush })
+    {
+        b->setWantsKeyboardFocus (false);
+        addAndMakeVisible (b);
+    }
+    rewindButton.setConnectedEdges (juce::Button::ConnectedOnRight);
+    playButton.setConnectedEdges (juce::Button::ConnectedOnLeft | juce::Button::ConnectedOnRight);
+    stopButton.setConnectedEdges (juce::Button::ConnectedOnLeft);
+    playButton.onColour = Palette::accent2;
+    accentBrush.setConnectedEdges (juce::Button::ConnectedOnRight);
+    hitBrush.setConnectedEdges (juce::Button::ConnectedOnLeft | juce::Button::ConnectedOnRight);
+    ghostBrush.setConnectedEdges (juce::Button::ConnectedOnLeft | juce::Button::ConnectedOnRight);
+    flamBrush.setConnectedEdges (juce::Button::ConnectedOnLeft);
+    accentBrush.onClick = [this] { setBrush ('X'); };
+    hitBrush.onClick    = [this] { setBrush ('x'); };
+    ghostBrush.onClick  = [this] { setBrush ('g'); };
+    flamBrush.onClick   = [this] { setBrush ('f'); };
+    closeButton.onClick = [this] { setVisible (false); };
+    Localisation::bind (*this, [this] { refreshText(); });
+    setBrush ('x');
+}
+
+void EditorOverlay::setBrush (char symbol)
+{
+    brush = symbol;
+    accentBrush.setToggleState (brush == 'X', juce::dontSendNotification);
+    hitBrush.setToggleState (brush == 'x', juce::dontSendNotification);
+    ghostBrush.setToggleState (brush == 'g', juce::dontSendNotification);
+    flamBrush.setToggleState (brush == 'f', juce::dontSendNotification);
+    if (onBrush != nullptr)
+        onBrush (brush);
+}
+
+void EditorOverlay::refreshText()
+{
+    accentBrush.setButtonText (tr ("ACCENT"));
+    hitBrush.setButtonText (tr ("HIT"));
+    ghostBrush.setButtonText (tr ("GHOST"));
+    flamBrush.setButtonText (tr ("RAKE"));
+    const auto tip = tr ("What a click on an empty step draws (Shift: accent, Alt: ghost, Ctrl: rake work too)");
+    for (auto* b : { &accentBrush, &hitBrush, &ghostBrush, &flamBrush })
+        b->setTooltip (tip);
+    rewindButton.setTooltip (tr ("Back to the start"));
+    playButton.setTooltip (tr ("Play / pause the groove without the DAW (space bar)"));
+    stopButton.setTooltip (tr ("Stop and go back to the start"));
+    closeButton.setTooltip (tr ("CLOSE"));
+    repaint();
+}
+
+void EditorOverlay::paint (juce::Graphics& g)
+{
+    g.fillAll (Palette::background.withAlpha (0.97f));
+    const auto card = getLocalBounds().toFloat().reduced (10.0f);
+    g.setColour (Palette::panel);
+    g.fillRoundedRectangle (card, 10.0f);
+    g.setColour (Palette::panelEdge);
+    g.drawRoundedRectangle (card.reduced (0.5f), 10.0f, 1.0f);
+    g.setColour (Palette::accent);
+    g.fillRoundedRectangle (28.0f, 30.0f, 3.0f, 14.0f, 1.0f);
+    g.setColour (Palette::text);
+    g.setFont (juce::Font (juce::FontOptions (15.0f).withStyle ("Bold")));
+    g.drawText (Localisation::upper (tr ("Edit groove")), 38, 22, 260, 30, juce::Justification::centredLeft);
+
+    g.setColour (Palette::dim);
+    g.setFont (juce::Font (juce::FontOptions (10.5f).withStyle ("Bold")));
+    auto caption = [&g] (const juce::String& text, int x, int w)
+    {
+        g.drawFittedText (Localisation::upper (tr (text)), { x, 58, w, 14 }, juce::Justification::centredLeft, 1, 0.7f);
+    };
+    caption ("Transport", 28, 120);
+    caption ("Brush", 174, 120);
+    caption ("View", 476, 120);
+    caption ("New rhythm", 784, 90);
+    caption ("Groove", 874, 90);
+    caption (viewMode != nullptr && viewMode() == 2 ? "Feel" : "Template", 1062, 96);
+}
+
+//==============================================================================
 FaseGrooveGuitarEditor::FaseGrooveGuitarEditor (FaseGrooveGuitarProcessor& p)
     : AudioProcessorEditor (&p), processor (p),
       grooveCombo (p.apvts, ParamIDs::pattern, "Groove"),
@@ -2975,11 +3156,59 @@ FaseGrooveGuitarEditor::FaseGrooveGuitarEditor (FaseGrooveGuitarProcessor& p)
     grid.onSelectLane = [this] (int lane) { selectLane (lane); };
     for (juce::Component* c : std::initializer_list<juce::Component*> { &gridTab, &velocityTab, &mixerTab, &fillTab, &newRhythmButton, &myGroovesButton,
                                                                         &importButton, &templateButton, &clearButton, &grid })
-        show (*c);
-    content.addChildComponent (velocityView);
-    content.addChildComponent (mixerView);
-    content.addChildComponent (fillView);
-    content.addChildComponent (timingButton);
+        editOverlay.addAndMakeVisible (*c);
+    editOverlay.addChildComponent (velocityView);
+    editOverlay.addChildComponent (mixerView);
+    editOverlay.addChildComponent (fillView);
+    editOverlay.addChildComponent (timingButton);
+
+    // The main window: the groove at a glance (a click opens the editor) and the volume faders.
+    overview.onOpen = [this] { openEditor(); };
+    Localisation::bind (overview, [this] { overview.setTooltip (tr ("Click: open the editor")); });
+    Localisation::bind (openEditorButton, [this]
+    {
+        openEditorButton.setButtonText (tr ("EDITOR..."));
+        openEditorButton.setTooltip (tr ("The big editor: step grid, velocity, mixer and fill, to edit everything (or click the groove)"));
+    });
+    openEditorButton.onClick = [this] { openEditor(); };
+    show (overview);
+    content.addChildComponent (miniMixer);
+    show (openEditorButton);
+    mainGrooveTab.setConnectedEdges (juce::Button::ConnectedOnRight);
+    mainVolumeTab.setConnectedEdges (juce::Button::ConnectedOnLeft);
+    mainGrooveTab.onClick = [this] { setMainTab (false); };
+    mainVolumeTab.onClick = [this] { setMainTab (true); };
+    mainNewRhythm.iconColour = Palette::accent;
+    mainNewRhythm.onClick = [this] { if (newRhythmButton.onClick) newRhythmButton.onClick(); };
+    mainMyGrooves.onClick = [this] { if (myGroovesButton.onClick) myGroovesButton.onClick(); };
+    mainImport.onClick    = [this] { if (importButton.onClick) importButton.onClick(); };
+    mainTemplate.onClick  = [this] { if (templateButton.onClick) templateButton.onClick(); };
+    mainClear.onClick     = [this] { if (clearButton.onClick) clearButton.onClick(); };
+    Localisation::bind (mainGrooveTab, [this]
+    {
+        mainGrooveTab.setButtonText (tr ("GROOVE"));
+        mainVolumeTab.setButtonText (tr ("VOLUMES"));
+        mainVolumeTab.setTooltip (tr ("The volume of each one in the guide sound"));
+        mainNewRhythm.setButtonText (tr ("GROOVE"));
+        mainNewRhythm.setTooltip (newRhythmButton.getTooltip());
+        mainMyGrooves.setButtonText (tr ("MY GROOVES"));
+        mainMyGrooves.setTooltip (myGroovesButton.getTooltip());
+        mainImport.setButtonText (tr ("IMPORT..."));
+        mainImport.setTooltip (importButton.getTooltip());
+        mainTemplate.setButtonText (tr ("TEMPLATE..."));
+        mainTemplate.setTooltip (templateButton.getTooltip());
+        mainClear.setButtonText (tr ("CLEAR"));
+        mainClear.setTooltip (clearButton.getTooltip());
+    });
+    for (juce::Component* m : std::initializer_list<juce::Component*> { &mainGrooveTab, &mainVolumeTab, &mainNewRhythm, &mainMyGrooves, &mainImport,
+                                                                        &mainTemplate, &mainClear })
+        show (*m);
+    setMainTab (false);
+    editOverlay.viewMode = [this] { return viewMode; };
+    editOverlay.onBrush = [this] (char b) { grid.brush = b; fillView.brush = b; };
+    editOverlay.rewindButton.onClick = [this] { processor.previewToStart(); };
+    editOverlay.playButton.onClick = [this] { processor.previewToggle(); };
+    editOverlay.stopButton.onClick = [this] { processor.previewStop(); };
 
     // ---- Export MIDI ----
     notesBox.addItem ("All lanes", 1);
@@ -3013,6 +3242,7 @@ FaseGrooveGuitarEditor::FaseGrooveGuitarEditor (FaseGrooveGuitarProcessor& p)
     for (juce::Component* c : std::initializer_list<juce::Component*> { &notesBox, &lengthBox, &dragTile, &saveButton, &wavButton, &songButton })
         show (*c);
 
+    content.addChildComponent (editOverlay);
     content.addChildComponent (songOverlay);
     content.addChildComponent (browser);
     content.addChildComponent (options);
@@ -3259,6 +3489,7 @@ bool FaseGrooveGuitarEditor::Content::keyPressed (const juce::KeyPress& key)
         editor.options.setVisible (false);
         editor.songOverlay.setVisible (false);
         editor.browser.setVisible (false);
+        editor.editOverlay.setVisible (false);
         return true;
     }
     return false;
@@ -3334,20 +3565,41 @@ void FaseGrooveGuitarEditor::layout()
     volume.setBounds (1074, 340, 76, 72);
 
     // Edit (20, 426, 830, 424): the biggest part of the window
-    gridTab.setBounds (34, 450, 88, 30);
-    velocityTab.setBounds (122, 450, 80, 30);
-    mixerTab.setBounds (202, 450, 64, 30);
-    fillTab.setBounds (266, 450, 52, 30);
-    newRhythmButton.setBounds (330, 450, 80, 30);
-    myGroovesButton.setBounds (420, 450, 100, 30);
-    importButton.setBounds (524, 450, 84, 30);
-    templateButton.setBounds (612, 450, 92, 30);
-    timingButton.setBounds (612, 450, 92, 30);
-    clearButton.setBounds (762, 450, 76, 30);
-    grid.setBounds (28, 486, 814, 356);
-    velocityView.setBounds (28, 486, 814, 356);
-    mixerView.setBounds (28, 486, 814, 356);
-    fillView.setBounds (28, 486, 814, 356);
+    // The groove at a glance and the faders (20, 426, 830, 276); the editor over the window.
+    openEditorButton.setBounds (34, 450, 112, 30);
+    mainGrooveTab.setBounds (156, 450, 84, 30);
+    mainVolumeTab.setBounds (240, 450, 84, 30);
+    mainNewRhythm.setBounds (338, 450, 86, 30);
+    mainMyGrooves.setBounds (432, 450, 100, 30);
+    mainImport.setBounds (536, 450, 86, 30);
+    mainTemplate.setBounds (626, 450, 96, 30);
+    mainClear.setBounds (762, 450, 76, 30);
+    overview.setBounds (30, 488, 810, 206);
+    miniMixer.setBounds (30, 490, 810, 204);
+
+    editOverlay.setBounds (content.getLocalBounds());
+    editOverlay.closeButton.setBounds (1134, 22, 28, 28);
+    editOverlay.rewindButton.setBounds (28, 74, 38, 30);
+    editOverlay.playButton.setBounds (66, 74, 44, 30);
+    editOverlay.stopButton.setBounds (110, 74, 38, 30);
+    editOverlay.accentBrush.setBounds (174, 74, 74, 30);
+    editOverlay.hitBrush.setBounds (248, 74, 60, 30);
+    editOverlay.ghostBrush.setBounds (308, 74, 70, 30);
+    editOverlay.flamBrush.setBounds (378, 74, 70, 30);
+    gridTab.setBounds (476, 74, 92, 30);
+    velocityTab.setBounds (568, 74, 84, 30);
+    mixerTab.setBounds (652, 74, 64, 30);
+    fillTab.setBounds (716, 74, 54, 30);
+    newRhythmButton.setBounds (784, 74, 82, 30);
+    myGroovesButton.setBounds (874, 74, 96, 30);
+    importButton.setBounds (970, 74, 84, 30);
+    templateButton.setBounds (1062, 74, 96, 30);
+    timingButton.setBounds (1062, 74, 96, 30);
+    clearButton.setBounds (1068, 22, 60, 28);
+    grid.setBounds (24, 116, 1132, 576);
+    velocityView.setBounds (24, 116, 1132, 576);
+    mixerView.setBounds (24, 116, 1132, 576);
+    fillView.setBounds (24, 116, 1132, 576);
 
     // Export MIDI & audio (860, 426, 302, 424)
     notesBox.setBounds (874, 472, 134, 28);
@@ -3424,8 +3676,8 @@ void FaseGrooveGuitarEditor::paintContent (juce::Graphics& g)
     drawPanel (g, { 320, 230, 260, 186 }, "Chords");
     drawPanel (g, { 590, 230, 300, 186 }, "Groove feel & song");
     drawPanel (g, { 900, 230, 260, 186 }, "Guide sound & MIDI out");
-    drawPanel (g, { 20, 426, 830, 424 }, {});
-    drawPanel (g, { 860, 426, 300, 424 }, "Export MIDI & audio");
+    drawPanel (g, { 20, 426, 830, 276 }, {});
+    drawPanel (g, { 860, 426, 300, 276 }, "Export MIDI & audio");
 
     auto caption = [&g] (const juce::String& text, int x, int y, int w = 160)
     {
@@ -3440,11 +3692,12 @@ void FaseGrooveGuitarEditor::paintContent (juce::Graphics& g)
     caption ("Octave", 34, 302);
     caption ("Level", 186, 300, 54);
     caption ("Volume", 242, 300, 58);
-    caption ("View", 34, 434);
-    caption ("New rhythm", 330, 434);
-    caption ("Groove", 420, 434);
-    caption (viewMode == 2 ? "Feel" : "Template", 612, 434, 92);
     caption ("Strum", 1034, 299, 116);
+    caption ("Edit", 34, 434, 112);
+    caption ("View", 156, 434);
+    caption ("New rhythm", 338, 434);
+    caption ("Groove", 432, 434);
+    caption ("Template", 626, 434, 96);
     caption ("Notes", 874, 456);
     caption ("Clip length", 1012, 456);
 
@@ -3472,13 +3725,31 @@ void FaseGrooveGuitarEditor::paintContent (juce::Graphics& g)
     // A short message (a saved preset, an imported file...)
     if (messageTicks > 0)
     {
-        auto r = juce::Rectangle<float> (0.0f, 0.0f, 440.0f, 34.0f).withCentre ({ designWidth * 0.5f, 520.0f });
+        auto r = juce::Rectangle<float> (0.0f, 0.0f, 440.0f, 34.0f).withCentre ({ designWidth * 0.5f, 560.0f });
         g.setColour (Palette::accent);
         g.fillRoundedRectangle (r, 6.0f);
         g.setColour (Palette::background);
         g.setFont (font (13.0f, true));
         g.drawFittedText (message, r.reduced (10.0f, 0.0f).toNearestInt(), juce::Justification::centred, 1, 0.8f);
     }
+}
+
+void FaseGrooveGuitarEditor::setMainTab (bool volumes)
+{
+    showVolumes = volumes;
+    mainGrooveTab.setToggleState (! volumes, juce::dontSendNotification);
+    mainVolumeTab.setToggleState (volumes, juce::dontSendNotification);
+    overview.setVisible (! volumes);
+    miniMixer.setVisible (volumes);
+}
+
+void FaseGrooveGuitarEditor::openEditor (int view)
+{
+    if (view >= 0)
+        setView (view);
+    editOverlay.setVisible (true);
+    editOverlay.toFront (false);
+    grid.refresh();
 }
 
 void FaseGrooveGuitarEditor::setView (int mode)
@@ -3496,6 +3767,7 @@ void FaseGrooveGuitarEditor::setView (int mode)
     templateButton.setVisible (viewMode != 2);
     velocityView.setLane (selectedLane);
     content.repaint();
+    editOverlay.repaint();
 }
 
 void FaseGrooveGuitarEditor::selectLane (int lane)
@@ -3549,16 +3821,26 @@ void FaseGrooveGuitarEditor::timerCallback()
     grid.setLights (lights, selectedLane);
     chordPanel.refresh();
 
-    if (viewMode == 1)
-        velocityView.refresh();
-    else if (viewMode == 2)
-        mixerView.setLights (lights);
-    else if (viewMode == 3)
-        fillView.repaint();
-    else
-        grid.refresh();
+    overview.refresh();
+    miniMixer.repaint();
+    const bool playingNow = processor.previewOn.load();
+    editOverlay.playButton.setIcon (playingNow ? IconButton::Icon::pause : IconButton::Icon::play);
+    editOverlay.playButton.setToggleState (playingNow, juce::dontSendNotification);
+    if (editOverlay.isVisible())   // the views only while the editor is open
+    {
+        if (viewMode == 1)
+            velocityView.refresh();
+        else if (viewMode == 2)
+            mixerView.setLights (lights);
+        else if (viewMode == 3)
+            fillView.repaint();
+        else
+            grid.refresh();
+    }
     linkButton.setToggleState (processor.isLinked(), juce::dontSendNotification);
     templateButton.setToggleState (processor.hasGrooveTemplate(), juce::dontSendNotification);
+    mainTemplate.setToggleState (processor.hasGrooveTemplate(), juce::dontSendNotification);
+    mainTemplate.setColour (juce::TextButton::buttonOnColourId, Palette::accent.darker (0.35f));
     templateButton.setColour (juce::TextButton::buttonOnColourId, Palette::accent.darker (0.35f));
 
     const auto shown = processor.displayedPattern();
@@ -3720,7 +4002,7 @@ void FaseGrooveGuitarEditor::showGroovesMenu()
     menu.addItem (2, tr ("Open the grooves folder"));
 
     juce::Component::SafePointer<FaseGrooveGuitarEditor> safe (this);
-    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&myGroovesButton), [safe, files] (int result)
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (menuTarget (myGroovesButton, mainMyGrooves)), [safe, files] (int result)
     {
         if (safe == nullptr || result <= 0)
             return;
@@ -3781,7 +4063,7 @@ void FaseGrooveGuitarEditor::showTemplateMenu()
         menu.addItem (4, tr ("Remove the template"));
     }
     juce::Component::SafePointer<FaseGrooveGuitarEditor> safe (this);
-    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&templateButton), [safe] (int result)
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (menuTarget (templateButton, mainTemplate)), [safe] (int result)
     {
         if (safe == nullptr || result <= 0)
             return;

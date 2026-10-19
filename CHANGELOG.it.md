@@ -4,6 +4,15 @@
 
 Tutte le modifiche importanti di **Fase Groove Guitar**.
 
+## [Unreleased]
+
+- **Finestra più piccola ed editor grande.** La finestra principale mostra il groove a colpo d'occhio
+  (clic per modificarlo) e, in una seconda scheda, i fader dei volumi; restano lì i dadi, I MIEI
+  GROOVE, IMPORTA, TEMPLATE e SVUOTA. **EDITOR...** apre l'editor sopra tutta la finestra, come il
+  piano roll di Fase Groove Piano: trasporto, pennello (accento, colpo, ghost, rake), griglia,
+  velocity, mixer e fill. Il menu col tasto destro di uno step lo cancella o lo sposta di un sedicesimo.
+- **LINK e PLAY: niente più scatti** (il tempo scorre continuo e segue con dolcezza l'orologio condiviso).
+
 ## [0.1.0] - 2026-10-19
 
 La prima versione: la chitarra della famiglia Fase Groove, con la stessa interfaccia di

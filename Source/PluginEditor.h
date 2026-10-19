@@ -118,6 +118,8 @@ private:
 class GuitarGrid : public juce::Component, public juce::SettableTooltipClient
 {
 public:
+    /** What a click on an empty step draws: 'X' accent, 'x' hit, 'g' ghost, 'f' rake (the editor's brush). */
+    char brush = 'x';
     explicit GuitarGrid (FaseGrooveGuitarProcessor&);
 
     void paint (juce::Graphics&) override;
@@ -201,6 +203,7 @@ private:
 class FillView : public juce::Component, public juce::SettableTooltipClient
 {
 public:
+    char brush = 'x';   // what a click on an empty step draws (the editor's brush)
     explicit FillView (FaseGrooveGuitarProcessor&);
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -428,6 +431,60 @@ private:
 };
 
 //==============================================================================
+//==============================================================================
+/** The groove at a glance, on the main window: every lane's hits and the playhead, only to
+    look at. A click opens the editor. */
+class GrooveOverview : public juce::Component, public juce::SettableTooltipClient
+{
+public:
+    explicit GrooveOverview (FaseGrooveGuitarProcessor& p) : processor (p) {}
+    void paint (juce::Graphics&) override;
+    void mouseDown (const juce::MouseEvent&) override { if (onOpen != nullptr) onOpen(); }
+    void refresh();
+    std::function<void()> onOpen;
+
+private:
+    FaseGrooveGuitarProcessor& processor;
+    fgg::GuitarPattern pattern;
+    std::array<bool, fgg::numLanes> muted {};
+    int playStep = -1;
+};
+
+/** The volume of each lane in the guide sound, small: the only thing changed from the main
+    window (everything else in the editor). */
+class MiniMixer : public juce::Component
+{
+public:
+    explicit MiniMixer (FaseGrooveGuitarProcessor&);
+    void paint (juce::Graphics&) override;
+    void resized() override;
+
+private:
+    juce::Rectangle<int> strip (int lane) const;
+    FaseGrooveGuitarProcessor& processor;
+    juce::OwnedArray<juce::Slider> faders;
+    juce::OwnedArray<juce::AudioProcessorValueTreeState::SliderAttachment> attachments;
+};
+
+/** The editor, big, over the whole window (as Fase Groove Piano's piano roll): the transport, the
+    brush (what a click draws), the views (step grid, velocity, mixer, fill) and the groove's tools. */
+class EditorOverlay : public juce::Component
+{
+public:
+    EditorOverlay();
+    void paint (juce::Graphics&) override;
+    void mouseDown (const juce::MouseEvent&) override {}   // nothing under it is clicked
+    void refreshText();
+    void setBrush (char symbol);
+    std::function<void (char)> onBrush;
+    std::function<int()> viewMode;           // the view shown (its caption above the tools)
+
+    IconButton rewindButton { IconButton::Icon::rewind }, playButton { IconButton::Icon::play }, stopButton { IconButton::Icon::stop },
+               closeButton { IconButton::Icon::close };
+    juce::TextButton accentBrush, hitBrush, ghostBrush, flamBrush;
+    char brush = 'x';
+};
+
 class FaseGrooveGuitarEditor : public juce::AudioProcessorEditor, public juce::FileDragAndDropTarget, public juce::Timer
 {
 public:
@@ -438,7 +495,7 @@ public:
     bool isInterestedInFileDrag (const juce::StringArray&) override;
     void filesDropped (const juce::StringArray&, int, int) override;
 
-    static constexpr int designWidth = 1180, designHeight = 860;
+    static constexpr int designWidth = 1180, designHeight = 716;
 
     void timerCallback() override;
 
@@ -539,6 +596,19 @@ private:
     MixerView mixerView;
     FillView fillView;
     int viewMode = 0;
+    GrooveOverview overview { processor };
+    MiniMixer miniMixer { processor };
+    EditorOverlay editOverlay;
+    juce::TextButton openEditorButton;
+    // The same tools on the main window (the editor has its own): tabs groove / volumes, the dice,
+    // MY GROOVES, IMPORT, TEMPLATE, CLEAR.
+    juce::TextButton mainGrooveTab, mainVolumeTab, mainMyGrooves, mainImport, mainTemplate, mainClear;
+    IconButton mainNewRhythm { IconButton::Icon::dice };
+    bool showVolumes = false;
+    void setMainTab (bool volumes);
+    /** The button a menu opens from: the editor's while it is open, else the main window's. */
+    juce::Component* menuTarget (juce::Component& inEditor, juce::Component& onMain) { return editOverlay.isVisible() ? &inEditor : &onMain; }
+    void openEditor (int view = -1);
 
     // Export
     juce::ComboBox notesBox, lengthBox;
