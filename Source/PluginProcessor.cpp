@@ -1122,8 +1122,10 @@ void FaseGrooveGuitarProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
         }
         guitar.setSound (juce::roundToInt (raw (ParamIDs::kit)));
         guitar.setTone (raw (ParamIDs::tone));
-        std::stable_sort (guideEvents.begin(), guideEvents.end(),
-                          [] (const GuideGuitar::Event& a, const GuideGuitar::Event& b) { return a.sample < b.sample; });
+        // In time order (nearly sorted already): an insertion sort, no allocation on the audio thread.
+        for (size_t i = 1; i < guideEvents.size(); ++i)
+            for (size_t j = i; j > 0 && guideEvents[j].sample < guideEvents[j - 1].sample; --j)
+                std::swap (guideEvents[j], guideEvents[j - 1]);
         guitar.render (buffer, guideEvents, gains);
 
         const float amount = raw (ParamIDs::reverb);
@@ -1188,15 +1190,54 @@ juce::MidiFile FaseGrooveGuitarProcessor::midiFromEvents (const std::vector<fgg:
 
     auto notesOf = [&] (juce::MidiMessageSequence& track, int lane)
     {
+        // Clean notes for any instrument: at the same tick the note-offs come first, a note
+        // struck again while still sounding is ended first, a note-off with nothing sounding is
+        // dropped, and every note lasts at least a 64th (no zero-length notes the DAW skips).
+        std::vector<const fgg::NoteEvent*> sorted;
         for (const auto& e : clipEvents)
+            if (lane < 0 || e.lane == lane)
+                sorted.push_back (&e);
+        std::stable_sort (sorted.begin(), sorted.end(), [] (const fgg::NoteEvent* a, const fgg::NoteEvent* b)
         {
-            if (lane >= 0 && e.lane != lane)
-                continue;
-            const double tick = std::round (juce::jlimit (0.0, beats, e.ppq) * ticksPerQuarter);
-            track.addEvent (e.isNoteOn() ? juce::MidiMessage::noteOn (channel, e.note, (juce::uint8) e.velocity)
-                                         : juce::MidiMessage::noteOff (channel, e.note),
-                            tick);
+            if (a->ppq != b->ppq)
+                return a->ppq < b->ppq;
+            return ! a->isNoteOn() && b->isNoteOn();
+        });
+        std::array<int, 128> sounding {};       // how many layers hold each pitch
+        std::array<double, 128> startTick {};
+        const double minLength = ticksPerQuarter / 16.0;
+        const double endTick = beats * ticksPerQuarter;
+        for (const auto* e : sorted)
+        {
+            const int note = juce::jlimit (0, 127, e->note);
+            const double tick = std::round (juce::jlimit (0.0, beats, e->ppq) * ticksPerQuarter);
+            if (e->isNoteOn())
+            {
+                if (sounding[(size_t) note] > 0)
+                {
+                    if (tick <= startTick[(size_t) note])   // the same note twice at once: one is enough
+                        continue;
+                    track.addEvent (juce::MidiMessage::noteOff (channel, note), tick);   // retriggered
+                }
+                if (tick >= endTick)
+                {
+                    sounding[(size_t) note] = 0;
+                    continue;
+                }
+                track.addEvent (juce::MidiMessage::noteOn (channel, note, (juce::uint8) juce::jlimit (1, 127, (int) e->velocity)), tick);
+                sounding[(size_t) note] = 1;
+                startTick[(size_t) note] = tick;
+            }
+            else if (sounding[(size_t) note] > 0)
+            {
+                sounding[(size_t) note] = 0;
+                track.addEvent (juce::MidiMessage::noteOff (channel, note),
+                                juce::jmin (endTick, juce::jmax (tick, startTick[(size_t) note] + minLength)));
+            }
         }
+        for (int n = 0; n < 128; ++n)   // nothing left hanging at the end
+            if (sounding[(size_t) n] > 0)
+                track.addEvent (juce::MidiMessage::noteOff (channel, n), endTick);
         // Every clip as long as asked: many DAWs cut a clip after its last event, so the end
         // gets a silent one (pitch bend in the middle: no change).
         const double end = beats * ticksPerQuarter;

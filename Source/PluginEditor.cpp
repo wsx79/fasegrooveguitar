@@ -1349,14 +1349,18 @@ void DragTile::mouseDrag (const juce::MouseEvent& e)
 
     dragging = true;
     repaint();
+    juce::Component::SafePointer<FaseGrooveGuitarEditor> editor (findParentComponentOfClass<FaseGrooveGuitarEditor>());
+    if (editor != nullptr)
+        juce::MessageManager::callAsync ([editor] { if (editor != nullptr) editor->enterMiniMode(); });
     juce::Component::SafePointer<DragTile> safe (this);
-    juce::DragAndDropContainer::performExternalDragDropOfFiles (files, false, this, [safe]
+    juce::DragAndDropContainer::performExternalDragDropOfFiles (files, false, this, [safe, editor]
     {
         if (safe != nullptr)
         {
             safe->dragging = false;
             safe->repaint();
         }
+        juce::MessageManager::callAsync ([editor] { if (editor != nullptr) editor->exitMiniMode(); });
     });
 }
 
@@ -1464,7 +1468,7 @@ FaseGrooveGuitarProcessor::ClipPart SongOverlay::clipPart() const
 
 juce::Rectangle<float> SongOverlay::card() const
 {
-    return getLocalBounds().toFloat().withSizeKeepingCentre (920.0f, 600.0f);
+    return getLocalBounds().toFloat().withSizeKeepingCentre (960.0f, 640.0f);
 }
 
 juce::Rectangle<float> SongOverlay::timelineArea() const
@@ -1476,7 +1480,7 @@ juce::Rectangle<int> SongOverlay::rowArea (int part) const
 {
     auto inner = card().toNearestInt().reduced (28, 20);
     inner.removeFromTop (64 + 46 + 14 + 18);   // title, timeline, gap, column names
-    return inner.removeFromTop (44 * (part + 1)).removeFromBottom (44).reduced (0, 4);
+    return inner.removeFromTop (46 * (part + 1)).removeFromBottom (46).reduced (0, 4);
 }
 
 void SongOverlay::show()
@@ -1563,27 +1567,29 @@ void SongOverlay::resized()
         fillBoxes[i]->setBounds (row.removeFromLeft (220));
     }
 
-    auto inner = card().toNearestInt().reduced (28, 20);
-    auto bottom = inner.removeFromBottom (40);
-    closeButton.setBounds (bottom.removeFromRight (80));
+    // Bottom, as in Fase Groove Piano: the three drag tiles, then SAVE and CLOSE on one row.
+    auto bottom = card().toNearestInt().reduced (28, 20).removeFromBottom (52);
+    closeButton.setBounds (bottom.removeFromRight (72).withSizeKeepingCentre (72, 32));
+    bottom.removeFromRight (10);
+    saveSectionsButton.setBounds (bottom.removeFromRight (176).withSizeKeepingCentre (176, 32));
+    bottom.removeFromRight (6);
+    saveSongButton.setBounds (bottom.removeFromRight (146).withSizeKeepingCentre (146, 32));
     bottom.removeFromRight (8);
-    saveSectionsButton.setBounds (bottom.removeFromRight (190));
+    songTile.setBounds (bottom.removeFromRight (162));
     bottom.removeFromRight (8);
-    saveSongButton.setBounds (bottom.removeFromRight (150));
+    sectionsTile.setBounds (bottom.removeFromRight (162));
     bottom.removeFromRight (8);
-    resetButton.setBounds (bottom.removeFromRight (100));
-    bottom.removeFromRight (8);
-    allButton.setBounds (bottom.removeFromLeft (96));
-    tracksButton.setBounds (bottom.removeFromLeft (176));
+    sectionTile.setBounds (bottom.removeFromRight (162));
 
-    inner.removeFromBottom (12);
-    auto tiles = inner.removeFromBottom (68);
-    const int w = (tiles.getWidth() - 2 * 12) / 3;
-    sectionTile.setBounds (tiles.removeFromLeft (w));
-    tiles.removeFromLeft (12);
-    sectionsTile.setBounds (tiles.removeFromLeft (w));
-    tiles.removeFromLeft (12);
-    songTile.setBounds (tiles);
+    // Above the tiles: what they drag (and SAVE writes), as the piano's instrument row.
+    auto parts = card().toNearestInt().reduced (28, 20).withTrimmedBottom (60).removeFromBottom (30);
+    parts = parts.withLeft (sectionsTile.getX() + 130).withRight (saveSectionsButton.getRight());
+    resetButton.setBounds (parts.removeFromLeft (100));
+    parts.removeFromLeft (10);
+    allButton.setBounds (parts.removeFromLeft (parts.getWidth() / 3));
+    tracksButton.setBounds (parts);
+    allButton.setConnectedEdges (juce::Button::ConnectedOnRight);
+    tracksButton.setConnectedEdges (juce::Button::ConnectedOnLeft);
 }
 
 void SongOverlay::paint (juce::Graphics& g)
@@ -3644,6 +3650,7 @@ FaseGrooveGuitarEditor::FaseGrooveGuitarEditor (FaseGrooveGuitarProcessor& p)
     getConstrainer()->setFixedAspectRatio ((double) designWidth / (double) designHeight);
     setSize (juce::roundToInt (designWidth * scale), juce::roundToInt (designHeight * scale));
 
+    addMouseListener (this, true);   // the undo history: see mouseUp
     startTimerHz (30);
 }
 
@@ -3718,8 +3725,49 @@ void FaseGrooveGuitarEditor::translateHostWindow()
     visit (*top);
 }
 
+void FaseGrooveGuitarEditor::MiniStrip::paint (juce::Graphics& g)
+{
+    auto r = getLocalBounds().toFloat().reduced (2.0f);
+    g.setColour (Palette::accent);
+    g.fillRoundedRectangle (r, 8.0f);
+    g.setColour (Palette::background);
+    g.setFont (font (15.0f, true));
+    g.drawFittedText (tr ("Drop the clip on a track"), r.reduced (10.0f, 4.0f).toNearestInt(), juce::Justification::centred, 2, 0.8f);
+}
+
+void FaseGrooveGuitarEditor::enterMiniMode()
+{
+    if (miniMode || isFullScreen())
+        return;
+    miniMode = true;
+    fullSize = { getWidth(), getHeight() };
+    content.setAlpha (0.0f);   // still there (the drag belongs to its tile), not seen
+    addAndMakeVisible (miniStrip);
+    miniStrip.toFront (false);
+    getConstrainer()->setFixedAspectRatio (0.0);
+    setResizeLimits (120, 40, designWidth * 2, designHeight * 2);
+    setSize (280, 64);
+}
+
+void FaseGrooveGuitarEditor::exitMiniMode()
+{
+    if (! miniMode)
+        return;
+    miniMode = false;
+    miniStrip.setVisible (false);
+    content.setAlpha (1.0f);
+    setResizeLimits ((int) (designWidth * 0.55f), (int) (designHeight * 0.55f), designWidth * 2, designHeight * 2);
+    getConstrainer()->setFixedAspectRatio ((double) designWidth / (double) designHeight);
+    setSize (fullSize.x, fullSize.y);
+}
+
 void FaseGrooveGuitarEditor::resized()
 {
+    if (miniMode)
+    {
+        miniStrip.setBounds (getLocalBounds());
+        return;
+    }
     // Full screen can have another shape: the interface keeps its proportions, centred.
     const float scale = juce::jmax (0.3f, juce::jmin ((float) getWidth() / (float) designWidth, (float) getHeight() / (float) designHeight));
     if (! isFullScreen())
@@ -4135,6 +4183,9 @@ void FaseGrooveGuitarEditor::stepGroove (int delta)
 
 void FaseGrooveGuitarEditor::timerCallback()
 {
+    // The light, cheap things 30 times a second; the rest 10 times.
+    const bool slowTick = (++uiTicks % 3) == 0;
+    if (slowTick)
     for (auto* c : combos)
         c->refresh();
 
@@ -4146,7 +4197,8 @@ void FaseGrooveGuitarEditor::timerCallback()
     if (progressionBrowser.isVisible())
         progressionBrowser.refresh();
 
-    overview.refresh();
+    if (slowTick)
+        overview.refresh();
     miniMixer.repaint();
     const bool playingNow = processor.previewOn.load();
     editOverlay.playButton.setIcon (playingNow ? IconButton::Icon::pause : IconButton::Icon::play);
@@ -4170,8 +4222,9 @@ void FaseGrooveGuitarEditor::timerCallback()
 
     const auto shown = processor.displayedPattern();
     const int step = processor.uiStep.load();
-    for (auto& card : partCards)
-        card->refresh (shown, step);
+    if (slowTick)
+        for (auto& card : partCards)
+            card->refresh (shown, step);
     refreshKitPanel();
 
     // The groove's name on its button.
@@ -4202,10 +4255,9 @@ void FaseGrooveGuitarEditor::timerCallback()
     dragTile.setSubtitle (notesBox.getText() + juce::String::fromUTF8 ("  \xc2\xb7  ") + lengthBox.getText());
     fullScreenButton.setTooltip (tr (isFullScreen() ? "Exit full screen" : "Full screen"));
 
-    // Undo history: a snapshot twice a second; a change pushes the previous one.
-    if (++snapshotTicks >= 15)
+    // Undo history: a snapshot once a mouse edit has settled; a change pushes the previous one.
+    if (pendingSnapshot > 0 && --pendingSnapshot == 0)
     {
-        snapshotTicks = 0;
         const auto now = processor.snapshot();
         if (now != lastSnapshot)
         {

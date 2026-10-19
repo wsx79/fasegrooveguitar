@@ -246,6 +246,7 @@
         { "SETTINGS", "IMPOSTAZIONI", "AJUSTES", "RÉGLAGES", "EINSTELLUNGEN", "AJUSTES" },
         { "ABOUT", "INFO", "ACERCA DE", "À PROPOS", "ÜBER", "SOBRE" },
         { "DRAG MIDI TO DAW", "TRASCINA MIDI NELLA DAW", "ARRASTRA EL MIDI A LA DAW", "GLISSER LE MIDI DANS LA DAW", "MIDI IN DIE DAW ZIEHEN", "ARRASTE O MIDI PARA A DAW" },
+        { "Drop the clip on a track", "Rilascia la clip su una traccia", "Suelta el clip en una pista", "Déposez le clip sur une piste", "Clip auf eine Spur ziehen", "Solte o clipe numa faixa" },
         { "DONATE: Ko-fi", "DONA: Ko-fi", "DONAR: Ko-fi", "DON : Ko-fi", "SPENDEN: Ko-fi", "DOAR: Ko-fi" },
         { "DONATE: PayPal", "DONA: PayPal", "DONAR: PayPal", "DON : PayPal", "SPENDEN: PayPal", "DOAR: PayPal" },
         { "SPOTIFY", "SPOTIFY", "SPOTIFY", "SPOTIFY", "SPOTIFY", "SPOTIFY" },

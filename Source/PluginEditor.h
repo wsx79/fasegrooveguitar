@@ -676,6 +676,25 @@ private:
     juce::StringArray undoStack, redoStack;
     juce::String lastSnapshot;
     int snapshotTicks = 0;
+    int uiTicks = 0;
+
+public:
+    /** As in Fase Groove Piano: while a clip is dragged the window shrinks to a small strip, so
+        the DAW's tracks are in view; it comes back when the clip is dropped. */
+    void enterMiniMode();
+    void exitMiniMode();
+private:
+    struct MiniStrip : public juce::Component
+    {
+        void paint (juce::Graphics&) override;
+    };
+    MiniStrip miniStrip;
+    bool miniMode = false;
+    juce::Point<int> fullSize;
+    // Undo history: a snapshot only after the mouse has changed something (not polled).
+    int pendingSnapshot = 0;
+    void mouseUp (const juce::MouseEvent&) override { pendingSnapshot = 8; }
+    void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override { pendingSnapshot = 8; }
 
     juce::Rectangle<int> sizeBeforeFullScreen;
     juce::String message;

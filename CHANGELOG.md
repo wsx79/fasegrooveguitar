@@ -4,6 +4,14 @@
 
 All notable changes to **Fase Groove Guitar**.
 
+## [0.2.1] - 2026-10-19
+
+- Much lighter interface: the undo history is saved only after an edit (no more snapshots of the whole state twice a second) and the panels refresh 10 times a second, the lights 30.
+- While a clip is dragged the window shrinks to a small strip, as in Fase Groove Piano, so the DAW's tracks are in view.
+- The song window laid out as Fase Groove Piano's: the three drag tiles, SAVE and CLOSE on one row.
+- MIDI export cleaned up: note-offs before note-ons on the same tick, a chord note struck again is ended first, no zero-length or hanging notes. Chords now sound in any instrument as they do in the plug-in.
+- Audio thread: no more sorting with allocations in every block.
+
 ## [0.2.0] - 2026-10-19
 
 - **174 chord progressions in a browser**, as the grooves': ten categories, every progression with

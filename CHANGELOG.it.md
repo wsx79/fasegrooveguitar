@@ -4,6 +4,14 @@
 
 Tutte le modifiche importanti di **Fase Groove Guitar**.
 
+## [0.2.1] - 2026-10-19
+
+- Interfaccia molto più leggera: la cronologia annulla si salva solo dopo una modifica (non più copie dell'intero stato due volte al secondo) e i pannelli si aggiornano 10 volte al secondo, le luci 30.
+- Mentre trascini una clip la finestra si riduce a una piccola striscia, come in Fase Groove Piano, così vedi le tracce della DAW.
+- La finestra del brano intero disposta come quella di Fase Groove Piano: le tre tessere da trascinare, SALVA e CHIUDI su una riga.
+- Export MIDI ripulito: note-off prima dei note-on sullo stesso tick, una nota dell'accordo ribattuta viene chiusa prima, niente note di durata zero o appese. Gli accordi suonano in ogni strumento come nel plug-in.
+- Thread audio: niente più ordinamenti con allocazioni a ogni blocco.
+
 ## [0.2.0] - 2026-10-19
 
 - **174 giri di accordi in un browser**, come quello dei groove: dieci categorie, ogni giro con i suoi

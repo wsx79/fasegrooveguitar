@@ -153,8 +153,13 @@ namespace
         CHECK (fgg::chordName (p.chordAt (3)) == "B7sus4");
         // The dice: another progression.
         const int before = juce::roundToInt (value (p, ParamIDs::progression));
-        p.randomizeChords();
-        CHECK (juce::roundToInt (value (p, ParamIDs::progression)) != before);
+        bool changed = false;   // (the dice may land on the same one: a few throws)
+        for (int t = 0; t < 8 && ! changed; ++t)
+        {
+            p.randomizeChords();
+            changed = juce::roundToInt (value (p, ParamIDs::progression)) != before;
+        }
+        CHECK (changed);
 
         // A style: a groove of the genre, its swing and its chords.
         const auto names = FaseGrooveGuitarProcessor::styleNames();
