@@ -120,7 +120,7 @@ Nel plug-in apri i crediti con **ABOUT** (o clicca il logo in alto a sinistra).
 
 ## Privacy
 
-Il plug-in **non raccoglie dati** e **non si collega mai a internet**. Vedi l'[informativa sulla privacy](PRIVACY.it.md).
+Il plug-in **non raccoglie dati**. La connessione a internet serve al controllo facoltativo degli aggiornamenti su GitHub (disattivabile in OPZIONI → IMPOSTAZIONI). Vedi l'[informativa sulla privacy](PRIVACY.it.md).
 
 ## Licenza
 

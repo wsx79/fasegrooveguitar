@@ -601,7 +601,8 @@ void GrooveEngine::render (double startPpq, double endPpq, const GuitarSettings&
     const double maxDelay = 1.0 + templateDelay + beatsPerMs
         * (40.0 + 6.0 * 2.6 * std::clamp ((double) s.strumMs, 0.0, 60.0));
     const auto firstStep = (long long) std::floor ((startPpq - maxDelay) / stepLength);
-    const auto lastStep  = (long long) std::floor (endPpq / stepLength) + 2;
+    // A negative template plus a 40 ms push and slide grace notes can precede three steps.
+    const auto lastStep  = (long long) std::floor (endPpq / stepLength) + 3;
     for (auto step = firstStep; step <= lastStep; ++step)
         collectStep (step, s, pattern, cachedVariation);
 

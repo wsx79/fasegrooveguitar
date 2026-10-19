@@ -117,7 +117,7 @@ In the plug-in, open the credits with **ABOUT** (or click the logo at the top le
 
 ## Privacy
 
-The plug-in **collects no data** and **never connects to the internet**. See the [privacy policy](PRIVACY.md).
+The plug-in **collects no data**. Its optional GitHub update check connects to the internet (switch it off in OPTIONS → SETTINGS). See the [privacy policy](PRIVACY.md).
 
 ## License
 

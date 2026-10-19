@@ -6,6 +6,7 @@ Tutte le modifiche importanti di **Fase Groove Guitar**.
 
 ## [0.3.4] - 2026-10-19
 
+- Corretti i colpi anticipati da template e push ai tempi elevati; test di indipendenza dalla dimensione dei blocchi. README e privacy descrivono il controllo aggiornamenti facoltativo già presente.
 - Controlli comuni a Piano, Drums e Guitar: stessi pulsanti, menu, font Inter, focus, stati attivi e colori dei comandi, mantenendo la disposizione attuale.
 - I rilasci MIDI mantengono il canale della nota iniziale, anche cambiando canale durante la riproduzione.
 - I preset vecchi ripristinano i valori predefiniti dei parametri mancanti, senza ereditare il preset precedente.

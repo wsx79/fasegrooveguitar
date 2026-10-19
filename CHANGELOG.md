@@ -6,6 +6,7 @@ All notable changes to **Fase Groove Guitar**.
 
 ## [0.3.4] - 2026-10-19
 
+- Preserve early template/push hits at high tempos; regression checks compare different block sizes. README and privacy now describe the existing optional update check.
 - Shared Piano/Drums/Guitar control theme: matching buttons, menus, embedded Inter fonts, focus and active states; existing layouts are preserved.
 - Note-offs keep the channel used by their note-on, including a channel change while playing.
 - Old presets restore defaults for missing parameters instead of inheriting the previous preset.
