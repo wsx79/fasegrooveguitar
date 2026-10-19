@@ -8,6 +8,7 @@
 // voices them on the neck, and the groove format shared by the presets, the random grooves
 // and the user pattern. Pure C++ (no JUCE).
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <string>
@@ -59,16 +60,61 @@ struct ChordTones
     bool operator== (const ChordTones& o) const noexcept { return root == o.root && mask == o.mask; }
 };
 ChordTones tonesOf (const Chord&) noexcept;
-/** The chord a set of held notes makes: the lowest note is the root. mask == 0: nothing held. */
+/** The chord a set of held notes makes: the root is the note the others make the best known chord
+    over (an inversion keeps its own root), the lowest one when nothing fits. mask == 0: nothing held. */
 ChordTones tonesOfNotes (const std::vector<int>& notes) noexcept;
 /** The same from the 128 MIDI notes, true where held: no allocation (for the audio thread).
     `count` gets how many notes are held. */
 ChordTones tonesOfHeld (const std::array<bool, 128>& held, int& count) noexcept;
 
-/** The MIDI notes a lane plays over a chord, lowest first, as a guitarist voices them in
-    standard tuning (between E2 = 40 and about A5): a down strum the full six-string chord, a stab
-    three high strings, a chank one, octaves two notes an octave apart... An arpeggio and a lick
-    play one note, chosen by the step (0..15) in the bar. `octave` moves it all up or down. */
+/** A few MIDI notes, lowest first, without allocating (for the audio thread). */
+struct NoteList
+{
+    std::array<int, 8> notes {};
+    int count = 0;
+
+    void add (int n) noexcept           { if (count < (int) notes.size()) notes[(size_t) count++] = n; }
+    void clear() noexcept               { count = 0; }
+    int size() const noexcept           { return count; }
+    bool empty() const noexcept         { return count == 0; }
+    int front() const noexcept          { return notes[0]; }
+    int back() const noexcept           { return notes[(size_t) std::max (0, count - 1)]; }
+    int operator[] (int i) const noexcept { return notes[(size_t) i]; }
+    int* begin() noexcept               { return notes.data(); }
+    int* end() noexcept                 { return notes.data() + count; }
+    const int* begin() const noexcept   { return notes.data(); }
+    const int* end() const noexcept     { return notes.data() + count; }
+    bool operator== (const NoteList& o) const noexcept { return count == o.count && std::equal (begin(), end(), o.begin()); }
+};
+
+/** The open strings of a guitar in standard tuning, low to high. */
+constexpr std::array<int, 6> openStrings { 40, 45, 50, 55, 59, 64 };
+
+/** Where a chord sits on the neck: real shapes, one note per string, the fretting hand never
+    stretching over more than four frets. Each one string by string, low to high. */
+struct ChordVoicing
+{
+    NoteList full;      // the strummed chord: four to six strings, the root on the bottom
+    NoteList stab;      // three strings high up: stabs and slides (a chank plays its top two)
+    NoteList four;      // four strings high up: the muted scratch and the arpeggio
+    NoteList stabAlt;   // the stab with another note on top (a bar of the phrase answers)
+};
+
+/** The shapes of a chord. With `previous` (the chord before), the hand moves as little as it
+    can: the shapes slide along the neck and keep the notes the two chords share. With
+    `roomForBand` the strum leaves the low strings to the bass and the stabs sit higher, above
+    a piano's left hand. */
+ChordVoicing voiceChord (const ChordTones& chord, const ChordVoicing* previous = nullptr, bool roomForBand = false);
+
+/** The MIDI notes a lane plays over a chord, lowest first, from its shapes (between E2 = 40 and
+    E6 = 88): a down strum the full chord, an up strum its top four strings, a stab three high
+    strings, a chank two, octaves two notes an octave apart... An arpeggio and a lick play one
+    note, chosen by the step (0..15) in the bar. `octave` moves it all up or down (folded back
+    into the guitar's range). `alternative`: the stab with its other top note. */
+void laneNotes (Lane lane, const ChordTones& chord, const ChordVoicing& voicing, int stepInBar, int octave,
+                NoteList& out, bool roomForBand = false, bool alternative = false) noexcept;
+
+/** The same, from the chord's own shapes (no chord before it). */
 std::vector<int> laneNotes (Lane lane, const ChordTones& chord, int stepInBar, int octave = 0);
 
 //==============================================================================

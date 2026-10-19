@@ -560,6 +560,8 @@ private:
     juce::TextButton syncButton { "SYNC DAW" };
     juce::Slider tempoSlider;
     juce::Label dawTempo;   // the DAW's tempo, in place of the slider while SYNC DAW is on
+    juce::TextButton playingButton { "PLAYING..." };   // let ring, room for the band, push, keyswitches
+    void showPlayingMenu();
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> syncAttachment, soundAttachment, bigStrumAttachment, sequencerAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> tempoAttachment;
 

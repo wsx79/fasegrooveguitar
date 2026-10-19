@@ -46,6 +46,12 @@ namespace ParamIDs
     inline constexpr const char* tone        = "tone";
     inline constexpr const char* reverb      = "reverb";
     inline constexpr const char* volume      = "volume";
+    inline constexpr const char* letRing     = "letRing";       // strums ring on until the next chord hit
+    inline constexpr const char* roomForBand = "roomForBand";   // the low strings left to the bass, the stabs above the piano
+    inline constexpr const char* pushChanges = "pushChanges";   // the last 8th of a bar plays the next chord
+    inline constexpr const char* keyswitches = "keyswitches";   // articulation keyswitches (and the swell's CC 11) in the MIDI
+
+    inline juce::String keyswitch (int articulation) { return "keyswitch" + juce::String (articulation + 1); }   // its note
 
     inline juce::String segment (int index) { return "segment" + juce::String (index + 1); }
     inline juce::String mute (int lane)  { return "mute" + juce::String (lane + 1); }
@@ -168,6 +174,9 @@ public:
     void newCircleOfFifths();
     /** A new key: the chords move with it. */
     void setKey (int key);
+    /** A new key and scale at once. Between relative keys (C major and A minor...) the chords
+        stay where they are: the same notes, only the tonic changes. */
+    void setKeyAndScale (int key, int scale);
     /** A random progression of the NEW GROOVE genre. */
     void randomizeChords();
     /** The chord a bar plays now: the held chord when the MIDI input has one, else its slot. */
@@ -357,10 +366,14 @@ private:
     struct LinkTimer : juce::Timer
     {
         explicit LinkTimer (FaseGrooveGuitarProcessor& p) : owner (p) {}
-        void timerCallback() override { owner.updateLink(); }
+        void timerCallback() override { owner.followKeyParameter(); owner.updateLink(); }
         FaseGrooveGuitarProcessor& owner;
     };
     LinkTimer linkTimer { *this };
+    /** The key the chord slots are in: a key moved by the host (automation, a generic editor)
+        takes the chords with it too. */
+    void followKeyParameter();
+    std::atomic<int> appliedKey { -1 };
     std::atomic<bool> leadMode { false };
     std::atomic<bool> keyLinked { false };
     double leadWrittenAt = 0.0;

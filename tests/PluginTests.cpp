@@ -235,6 +235,16 @@ namespace
         p.setKey (2);
         CHECK (p.chordAt (0).root == 2 && p.chordAt (1).root == 7);
         CHECK (juce::roundToInt (value (p, ParamIDs::key)) == 2);
+        // The relative minor keeps the chords (D major to B minor: the same notes)...
+        p.setParameterFromUI (ParamIDs::scale, 0.0f);
+        p.setKeyAndScale (11, 2);
+        CHECK (p.chordAt (0).root == 2 && p.chordAt (1).root == 7);
+        CHECK (juce::roundToInt (value (p, ParamIDs::key)) == 11 && juce::roundToInt (value (p, ParamIDs::scale)) == 2);
+        // ...another key moves them.
+        p.setKeyAndScale (9, 2);
+        CHECK (p.chordAt (0).root == 0 && p.chordAt (1).root == 5);
+        p.setKey (2);
+        p.setParameterFromUI (ParamIDs::scale, 0.0f);
         // One chord by hand.
         p.setChord (3, { 11, (int) fgg::ChordType::sus4 });
         CHECK (fgg::chordName (p.chordAt (3)) == "B7sus4");
@@ -279,6 +289,7 @@ namespace
         p.setParameterFromUI (ParamIDs::fills, 0.0f);
         p.setParameterFromUI (ParamIDs::variation, 0.0f);
         p.setParameterFromUI (ParamIDs::humanize, 0.0f);
+        p.setParameterFromUI (ParamIDs::pushChanges, 0.0f);   // (the last offbeat would play the next bar's chord)
         p.selectGroove (0);   // Offbeat Chords: stabs on every offbeat
 
         const auto clip = p.createMidiClip (4, FaseGrooveGuitarProcessor::ClipPart::all);

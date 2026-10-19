@@ -92,36 +92,74 @@ ChordTones tonesOf (const Chord& c) noexcept
     return { mod12 (c.root), chordTypeMask (c.type) };
 }
 
+namespace
+{
+    int popCount (unsigned v) noexcept
+    {
+        int n = 0;
+        for (; v != 0; v &= v - 1)
+            ++n;
+        return n;
+    }
+
+    /** The chord a set of pitch classes makes: the root is the held note the others make the
+        best known chord over (an inversion keeps its own root), the lowest one on a tie. */
+    ChordTones chordOfPitchClasses (unsigned pitchClasses, int lowest) noexcept
+    {
+        ChordTones best { mod12 (lowest), 0 };
+        int bestScore = -1000000;
+        for (int r = 0; r < 12; ++r)
+        {
+            if (((pitchClasses >> (unsigned) r) & 1u) == 0)
+                continue;
+            unsigned mask = 0;
+            for (int i = 0; i < 12; ++i)
+                if ((pitchClasses >> (unsigned) mod12 (r + i)) & 1u)
+                    mask |= 1u << (unsigned) i;
+            int fit = -1000;
+            for (int t = 0; t < numChordTypes; ++t)
+            {
+                const unsigned type = chordTypeMask (t);
+                fit = std::max (fit, 3 * popCount (mask & type) - 3 * popCount (mask & ~type) - 2 * popCount (type & ~mask));
+            }
+            const int score = 2 * fit + (r == mod12 (lowest) ? 1 : 0);
+            if (score > bestScore)
+            {
+                bestScore = score;
+                best = { r, mask };
+            }
+        }
+        return best;
+    }
+}
+
 ChordTones tonesOfNotes (const std::vector<int>& notes) noexcept
 {
-    ChordTones t { 0, 0 };
     if (notes.empty())
-        return t;
-    const int lowest = *std::min_element (notes.begin(), notes.end());
-    t.root = mod12 (lowest);
+        return { 0, 0 };
+    unsigned pitchClasses = 0;
     for (int n : notes)
-        t.mask |= 1u << (unsigned) mod12 (n - lowest);
-    return t;
+        pitchClasses |= 1u << (unsigned) mod12 (n);
+    return chordOfPitchClasses (pitchClasses, *std::min_element (notes.begin(), notes.end()));
 }
 
 ChordTones tonesOfHeld (const std::array<bool, 128>& held, int& count) noexcept
 {
-    ChordTones t { 0, 0 };
     count = 0;
     int lowest = -1;
+    unsigned pitchClasses = 0;
     for (int n = 0; n < 128; ++n)
     {
         if (! held[(size_t) n])
             continue;
         if (lowest < 0)
-        {
             lowest = n;
-            t.root = mod12 (n);
-        }
-        t.mask |= 1u << (unsigned) mod12 (n - lowest);
+        pitchClasses |= 1u << (unsigned) mod12 (n);
         ++count;
     }
-    return t;
+    if (lowest < 0)
+        return { 0, 0 };
+    return chordOfPitchClasses (pitchClasses, lowest);
 }
 
 //==============================================================================
@@ -132,153 +170,324 @@ namespace
         return (c.mask >> (unsigned) mod12 (note - c.root)) & 1u;
     }
 
-    /** The chord's intervals, most telling first: the 3rd, the 7th (or 6th), the colour notes,
-        the 5th, the root. */
-    std::vector<int> intervalsByPriority (const ChordTones& c)
-    {
-        static constexpr int order[] { 4, 3, 10, 11, 9, 2, 5, 7, 1, 6, 8, 0 };
-        std::vector<int> out;
-        for (int i : order)
-            if ((c.mask >> (unsigned) i) & 1u)
-                out.push_back (i);
-        if (out.empty())
-            out.push_back (0);
-        return out;
-    }
+    bool has (const ChordTones& c, int interval) noexcept { return (c.mask >> (unsigned) interval) & 1u; }
 
-    /** The root on the low strings: E2 (40) to Eb3 (51). */
+    /** The root on the low E string: E2 (40) to Eb3 (51). */
     int bassRoot (const ChordTones& c) noexcept { return 40 + mod12 (c.root - 4); }
 
-    /** The whole chord across six strings: the root on the bottom, wide intervals low and
-        closer ones on top, every chord tone once before any is doubled. */
-    std::vector<int> fullVoicing (const ChordTones& c)
+    /** The tones a shape can't leave out: the 3rd (the 4th of a sus chord), the 7th (or the 6th
+        in its place), the flat 5th of a diminished chord, the sharp 5th of an augmented one. */
+    unsigned essentialTones (const ChordTones& c) noexcept
     {
-        std::vector<int> notes { bassRoot (c) };
-        unsigned used = 1u;
-        while (notes.size() < 6)
-        {
-            const int prev = notes.back();
-            const int from = prev + (prev < 50 ? 5 : 3);
-            int found = -1;
-            for (int p = from; p <= from + 8 && found < 0; ++p)
-                if (inChord (c, p) && ((used >> (unsigned) mod12 (p - c.root)) & 1u) == 0)
-                    found = p;
-            for (int p = from; p <= from + 8 && found < 0; ++p)
-                if (inChord (c, p))
-                    found = p;
-            if (found < 0 || found > 76)
-                break;
-            notes.push_back (found);
-            used |= 1u << (unsigned) mod12 (found - c.root);
-        }
-        return notes;
+        unsigned e = 0;
+        if (has (c, 3) || has (c, 4))
+            e |= has (c, 4) ? 1u << 4u : 1u << 3u;
+        else if (has (c, 5))
+            e |= 1u << 5u;
+        if (has (c, 10) || has (c, 11))
+            e |= has (c, 10) ? 1u << 10u : 1u << 11u;
+        else if (has (c, 9))
+            e |= 1u << 9u;
+        if (has (c, 6) && ! has (c, 7))
+            e |= 1u << 6u;
+        if (has (c, 8) && ! has (c, 7) && has (c, 4))
+            e |= 1u << 8u;
+        return e;
     }
 
-    /** A few strings high on the neck (B3 and up), the most telling tones of the chord: what
-        stabs, chanks and scratches play. Never two notes a semitone apart. */
-    std::vector<int> highVoicing (const ChordTones& c, int count)
+    /** How much each tone tells of the chord: the 3rd and the 7th most, then the colours, the
+        root, the 5th last. */
+    double toneWeight (int interval) noexcept
     {
-        auto intervals = intervalsByPriority (c);
-        std::vector<int> notes;
-        for (size_t i = 0; i < intervals.size() && (int) notes.size() < count; ++i)
-            notes.push_back (59 + mod12 (c.root + intervals[i] - 59));
-        if ((int) notes.size() < count)   // a triad on four strings: its most telling tone on top
-            notes.push_back (59 + mod12 (c.root + intervals.front() - 59) + 12);
-        std::sort (notes.begin(), notes.end());
-        for (int pass = 0; pass < 6; ++pass)
+        switch (interval)
         {
-            bool moved = false;
-            for (size_t i = 0; i + 1 < notes.size(); ++i)
-                if (notes[i + 1] - notes[i] <= 1)
+            case 3: case 4:            return 10.0;
+            case 10: case 11:          return 9.0;
+            case 6: case 8:            return 7.0;
+            case 2: case 5: case 9:    return 6.0;
+            case 1:                    return 5.0;
+            case 0:                    return 4.0;
+            case 7:
+            default:                   return 2.0;
+        }
+    }
+
+    /** What a shape is looked for on: side by side strings, from `firstString`. */
+    struct ShapeSpec
+    {
+        int firstString, strings;
+        bool rootInBass;
+        int minGap;        // semitones between two neighbouring strings, at least
+        int lowest;        // no note below
+        int highest;       // no note above
+        int targetTop;     // where the top note likes to sit
+        double stringBonus;
+    };
+
+    /** The best shape of a chord on some strings: every note a chord tone, low to high string by
+        string, the fretting hand within four frets (a barre and three fingers), the tones that
+        matter all there. Near `previous` when given. No allocation. */
+    struct ShapeSearch
+    {
+        const ChordTones& chord;
+        const ShapeSpec& spec;
+        const NoteList* previous;
+        int avoidTop;
+        unsigned essentials;
+
+        std::array<int, 6> fret {}, pitch {};
+        int windowLow = 1;
+        double bestScore = -1.0e18;
+        NoteList best;
+
+        void run()
+        {
+            for (windowLow = 1; windowLow <= 12; ++windowLow)
+                step (0);
+        }
+
+        void step (int i)
+        {
+            if (i == spec.strings)
+            {
+                evaluate();
+                return;
+            }
+            const int string = spec.firstString + i;
+            for (int f = 0; f <= windowLow + 3; f = (f == 0 ? windowLow : f + 1))
+            {
+                const int n = openStrings[(size_t) string] + f;
+                if (! inChord (chord, n) || n < spec.lowest || n > spec.highest)
+                    continue;
+                if (i > 0 && n - pitch[(size_t) i - 1] < spec.minGap)
+                    continue;
+                if (i == 0 && spec.rootInBass && mod12 (n - chord.root) != 0)
+                    continue;
+                fret[(size_t) i] = f;
+                pitch[(size_t) i] = n;
+                step (i + 1);
+            }
+        }
+
+        void evaluate()
+        {
+            // The fretting hand: the lowest fret may be a barre, three fingers for the rest.
+            int lowFret = 99, highFret = 0, fretted = 0;
+            for (int i = 0; i < spec.strings; ++i)
+                if (fret[(size_t) i] > 0)
                 {
-                    notes[i] += 12;
-                    moved = true;
-                    break;
+                    lowFret = std::min (lowFret, fret[(size_t) i]);
+                    highFret = std::max (highFret, fret[(size_t) i]);
+                    ++fretted;
                 }
-            std::sort (notes.begin(), notes.end());
-            notes.erase (std::unique (notes.begin(), notes.end()), notes.end());
-            if (! moved)
-                break;
+            if (fretted > 0)
+            {
+                if (highFret - lowFret > 3)
+                    return;
+                int fingers = 0;
+                for (int i = 0; i < spec.strings; ++i)
+                    fingers += fret[(size_t) i] > lowFret ? 1 : 0;
+                if (fingers > 3)
+                    return;
+                if (lowFret != windowLow && windowLow > 1)
+                    return;   // the same shape is met in its own window
+            }
+            const int top = pitch[(size_t) spec.strings - 1];
+            if (top == avoidTop)
+                return;
+
+            unsigned covered = 0;
+            int doubledThird = 0;
+            for (int i = 0; i < spec.strings; ++i)
+            {
+                const int interval = mod12 (pitch[(size_t) i] - chord.root);
+                if ((covered >> (unsigned) interval) & 1u)
+                    doubledThird += (interval == 3 || interval == 4 || interval == 10 || interval == 11) ? 1 : 0;
+                covered |= 1u << (unsigned) interval;
+            }
+            double score = spec.stringBonus * spec.strings - 30.0 * popCount (essentials & ~covered) - 3.0 * doubledThird;
+            for (int i = 0; i < 12; ++i)
+                if ((covered >> (unsigned) i) & 1u)
+                    score += toneWeight (i);
+            score -= 1.5 * (spec.strings - popCount (covered));
+            score -= 0.35 * std::abs (top - spec.targetTop);
+            if (fretted > 0)
+                score -= 0.3 * (double) (lowFret + highFret) * 0.5;
+
+            if (previous != nullptr && ! previous->empty())
+            {
+                // The hand moves as little as it can: each note near one of the chord before.
+                double move = 0.0;
+                for (int i = 0; i < spec.strings; ++i)
+                {
+                    int nearest = 99;
+                    for (int p : *previous)
+                        nearest = std::min (nearest, std::abs (pitch[(size_t) i] - p));
+                    move += nearest;
+                }
+                score -= 1.2 * move / spec.strings + 0.4 * std::abs (top - previous->back());
+            }
+
+            if (score > bestScore)
+            {
+                bestScore = score;
+                best.clear();
+                for (int i = 0; i < spec.strings; ++i)
+                    best.add (pitch[(size_t) i]);
+            }
         }
+    };
+
+    NoteList bestShape (const ChordTones& c, std::initializer_list<ShapeSpec> specs, const NoteList* previous, int avoidTop = -1)
+    {
+        NoteList best;
+        double bestScore = -1.0e18;
+        for (const auto& spec : specs)
+        {
+            ShapeSearch search { c, spec, previous, avoidTop, essentialTones (c) };
+            search.run();
+            if (! search.best.empty() && search.bestScore > bestScore)
+            {
+                bestScore = search.bestScore;
+                best = search.best;
+            }
+        }
+        return best;
+    }
+
+    /** The pentatonic (or the five notes) that suits the chord, around the high strings. */
+    NoteList licks (const ChordTones& c) noexcept
+    {
+        static constexpr int minorScale[] { 0, 3, 5, 7, 10 }, majorScale[] { 0, 2, 4, 7, 9 }, dominant[] { 0, 2, 4, 7, 10 },
+                             halfDiminished[] { 0, 3, 5, 6, 10 }, diminished[] { 0, 2, 3, 6, 9 }, augmented[] { 0, 2, 4, 8, 10 },
+                             suspended[] { 0, 2, 5, 7, 10 };
+        const int* scale = majorScale;
+        if (has (c, 3) && has (c, 6) && ! has (c, 7))   scale = has (c, 10) ? halfDiminished : diminished;
+        else if (has (c, 4) && has (c, 8) && ! has (c, 7)) scale = augmented;
+        else if (has (c, 3) && ! has (c, 4))            scale = minorScale;
+        else if (has (c, 4) && has (c, 10))             scale = dominant;
+        else if (! has (c, 3) && ! has (c, 4))          scale = suspended;
+        NoteList notes;
+        for (int p = 62; p <= 77; ++p)
+            for (int i = 0; i < 5; ++i)
+                if (mod12 (p - c.root) == scale[i])
+                    notes.add (p);
         return notes;
     }
 
-    /** The pentatonic of the chord (minor over a minor chord, major otherwise), around the
-        high strings. */
-    std::vector<int> pentatonic (const ChordTones& c)
+    /** A whole shape up or down by octaves, folded back into the guitar's range (E2 .. E6). */
+    void moveByOctaves (NoteList& notes, int octave) noexcept
     {
-        const bool minor = ((c.mask >> 3u) & 1u) != 0 && ((c.mask >> 4u) & 1u) == 0;
-        static constexpr int minorScale[] { 0, 3, 5, 7, 10 }, majorScale[] { 0, 2, 4, 7, 9 };
-        std::vector<int> notes;
-        for (int p = 62; p <= 77; ++p)
-            for (int i : (minor ? minorScale : majorScale))
-                if (mod12 (p - c.root) == i)
-                    notes.push_back (p);
-        return notes;
+        if (notes.empty())
+            return;
+        for (auto& n : notes)
+            n += 12 * std::clamp (octave, -3, 3);
+        while (notes.front() < 40)
+            for (auto& n : notes)
+                n += 12;
+        while (notes.back() > 88 && notes.front() - 12 >= 40)
+            for (auto& n : notes)
+                n -= 12;
     }
 }
 
-std::vector<int> laneNotes (Lane lane, const ChordTones& chord, int stepInBar, int octave)
+ChordVoicing voiceChord (const ChordTones& c, const ChordVoicing* previous, bool roomForBand)
 {
-    std::vector<int> notes;
+    ChordVoicing v;
+    const int low = roomForBand ? 48 : 40;
+    // The strummed chord: six strings with the root on the low E, five from the A, four from the D.
+    if (roomForBand)
+        v.full = bestShape (c, { { 1, 5, true, 1, low, 79, 66, 3.0 }, { 2, 4, true, 1, low, 79, 67, 3.0 } },
+                            previous != nullptr ? &previous->full : nullptr);
+    else
+        v.full = bestShape (c, { { 0, 6, true, 1, low, 79, 64, 3.0 }, { 1, 5, true, 1, low, 79, 65, 3.0 }, { 2, 4, true, 1, low, 79, 66, 3.0 } },
+                            previous != nullptr ? &previous->full : nullptr);
+
+    const int stabLow = roomForBand ? 60 : 55, stabTop = roomForBand ? 74 : 70;
+    v.stab = bestShape (c, { { 3, 3, false, 2, stabLow, 79, stabTop, 0.0 }, { 2, 3, false, 2, stabLow, 79, stabTop, 0.0 } },
+                        previous != nullptr ? &previous->stab : nullptr);
+    v.stabAlt = bestShape (c, { { 3, 3, false, 2, stabLow, 79, stabTop, 0.0 }, { 2, 3, false, 2, stabLow, 79, stabTop, 0.0 } },
+                           &v.stab, v.stab.empty() ? -1 : v.stab.back());
+    if (v.stabAlt.empty())
+        v.stabAlt = v.stab;
+    v.four = bestShape (c, { { 2, 4, false, 2, roomForBand ? 55 : 50, 79, stabTop + 1, 0.0 }, { 1, 4, false, 2, roomForBand ? 55 : 50, 79, stabTop, 0.0 } },
+                        previous != nullptr ? &previous->four : nullptr);
+    return v;
+}
+
+void laneNotes (Lane lane, const ChordTones& chord, const ChordVoicing& v, int stepInBar, int octave,
+                NoteList& out, bool roomForBand, bool alternative) noexcept
+{
+    out.clear();
     const int step = ((stepInBar % 16) + 16) % 16;
+    const NoteList& stab = alternative ? v.stabAlt : v.stab;
     switch (lane)
     {
         case Lane::strumDown:
         case Lane::swell:
-            notes = fullVoicing (chord);
+            out = v.full;
             break;
         case Lane::strumUp:   // the top four strings
-        {
-            auto full = fullVoicing (chord);
-            notes.assign (full.size() > 4 ? full.end() - 4 : full.begin(), full.end());
+            for (int i = std::max (0, v.full.size() - 4); i < v.full.size(); ++i)
+                out.add (v.full[i]);
             break;
-        }
         case Lane::stab:
         case Lane::slide:
-            notes = highVoicing (chord, 3);
+            out = stab;
             break;
         case Lane::scratch:
-            notes = highVoicing (chord, 4);
+            out = v.four;
             break;
-        case Lane::chank:     // one high string: the top of the stab
-            notes = { highVoicing (chord, 3).back() };
+        case Lane::chank:     // the top two strings of the stab, short and choked
+            for (int i = std::max (0, stab.size() - 2); i < stab.size(); ++i)
+                out.add (stab[i]);
             break;
         case Lane::arp:       // up and down four strings
         {
-            const auto strings = highVoicing (chord, 4);
             static constexpr int order[] { 0, 1, 2, 3, 2, 1 };
-            notes = { strings[(size_t) std::min ((int) strings.size() - 1, order[step % 6])] };
+            if (! v.four.empty())
+                out.add (v.four[std::min (v.four.size() - 1, order[step % 6])]);
             break;
         }
         case Lane::lick:      // a phrase on the pentatonic that rises and falls over the bar
         {
-            const auto scale = pentatonic (chord);
             static constexpr int contour[] { 0, 2, 3, 4, 3, 2, 0, 1, 2, 4, 5, 4, 3, 2, 1, 0 };
-            notes = { scale[(size_t) std::min ((int) scale.size() - 1, contour[step] + 2)] };
+            const auto scale = licks (chord);
+            if (! scale.empty())
+                out.add (scale[std::min (scale.size() - 1, contour[step] + 2)]);
             break;
         }
         case Lane::octave:
         {
             const int r = 52 + mod12 (chord.root - 4);
-            notes = { r, r + 12 };
+            out.add (r);
+            out.add (r + 12);
             break;
         }
-        case Lane::power:
+        case Lane::power:     // root, the chord's own 5th (flat on a diminished chord), octave
         {
-            const int r = bassRoot (chord);
-            notes = { r, r + 7, r + 12 };
+            const int r = bassRoot (chord) + (roomForBand ? 12 : 0);
+            const int fifth = has (chord, 7) ? 7 : has (chord, 6) ? 6 : has (chord, 8) ? 8 : 7;
+            out.add (r);
+            out.add (r + fifth);
+            out.add (r + 12);
             break;
         }
         case Lane::root:
         default:
-            notes = { bassRoot (chord) };
+            out.add (v.full.empty() ? bassRoot (chord) : v.full.front());
             break;
     }
+    if (out.empty())
+        out.add (bassRoot (chord));
+    moveByOctaves (out, octave);
+}
 
-    for (auto& n : notes)
-        n = std::clamp (n + 12 * std::clamp (octave, -3, 3), 0, 127);
-    return notes;
+std::vector<int> laneNotes (Lane lane, const ChordTones& chord, int stepInBar, int octave)
+{
+    NoteList notes;
+    laneNotes (lane, chord, voiceChord (chord), stepInBar, octave, notes);
+    return { notes.begin(), notes.end() };
 }
 
 //==============================================================================
@@ -442,7 +651,7 @@ const std::vector<Progression>& progressions()
         { "Disco Jack  ii - V - I - vi", "Jackin' & funky", 0, { 1, 4, 0, 5 }, {  } },
         { "Ghetto Funk  i - iv - v - iv", "Jackin' & funky", 2, { 0, 3, 4, 3 }, {  } },
         { "Phrygian Jack  i - bII", "Jackin' & funky", 5, { 0, 1 }, {  } },
-        { "Lydian Jack  I7 - bVII", "Jackin' & funky", 10, { 0, 6, 0, 6 }, {  } },
+        { "Lydian Jack  I7 - bVII+", "Jackin' & funky", 10, { 0, 6, 0, 6 }, {  } },
         { "Chicago Bounce  i - VII - i - IV", "Jackin' & funky", 1, { 0, 6, 0, 3 }, {  } },
         { "Maj9 Drift  I - bIII - bVI - bVII", "Chromatic & borrowed", 0, { 0, 0, 0, 0 }, { 0, 3, 8, 10 } },
         { "Deep Planing  I - bVII - bVI - bVII", "Chromatic & borrowed", 0, { 0, 0, 0, 0 }, { 0, 10, 8, 10 } },

@@ -2540,10 +2540,9 @@ ProgressionBrowser::ProgressionBrowser (FaseGrooveGuitarProcessor& p) : processo
     circle.setFreeMode (true);
     circle.onPick = [this] (int pc, bool minor)
     {
-        processor.setKey (pc);
-        const bool minorNow = fgg::scaleIsMinor (juce::roundToInt (processor.raw (ParamIDs::scale)));
-        if (minor != minorNow)
-            processor.setParameterFromUI (ParamIDs::scale, minor ? 2.0f : 0.0f);
+        // A relative key (C major to A minor) keeps the chords: only the tonic changes.
+        const int scaleNow = juce::roundToInt (processor.raw (ParamIDs::scale));
+        processor.setKeyAndScale (pc, minor == fgg::scaleIsMinor (scaleNow) ? scaleNow : (minor ? 2 : 0));
         refresh();
     };
     circle.onMoveChord = [this] (int slot, int degree, int root, bool minor)
@@ -3257,7 +3256,9 @@ FaseGrooveGuitarEditor::FaseGrooveGuitarEditor (FaseGrooveGuitarProcessor& p)
     Localisation::bindTip (strumSlider, "The strum: the time between two strings (0 ms: every string at once). In the MIDI too");
     strumAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (p.apvts, ParamIDs::strum, strumSlider);
     tone.setTip ("The guitar's tone knob: darker or brighter");
-    for (juce::Component* c : std::initializer_list<juce::Component*> { &soundToggle, &kitCombo, &channelCombo, &strumSlider, &tone, &reverb, &volume })
+    Localisation::bindTip (playingButton, "How the guitar is played: let ring, room for bass & piano, pushed chord changes, keyswitches for sampled guitars");
+    playingButton.onClick = [this] { showPlayingMenu(); };
+    for (juce::Component* c : std::initializer_list<juce::Component*> { &soundToggle, &kitCombo, &channelCombo, &strumSlider, &tone, &reverb, &volume, &playingButton })
         show (*c);
 
     // ---- Edit: step grid / velocity ----
@@ -3450,7 +3451,7 @@ FaseGrooveGuitarEditor::FaseGrooveGuitarEditor (FaseGrooveGuitarProcessor& p)
              { &gridTab, "STEP GRID" }, { &velocityTab, "VELOCITY" }, { &mixerTab, "MIXER" }, { &clearButton, "CLEAR" },
              { &myGroovesButton, "MY GROOVES" }, { &saveButton, "SAVE .MID..." }, { &songButton, "FULL SONG..." },
              { &fillTab, "FILL" }, { &templateButton, "TEMPLATE..." }, { &timingButton, "TIMING..." }, { &wavButton, "SAVE .WAV..." },
-             { &linkButton, "LINK" }, { &leadButton, "LEAD" }, { &keyLinkButton, "KEY" } })
+             { &linkButton, "LINK" }, { &leadButton, "LEAD" }, { &keyLinkButton, "KEY" }, { &playingButton, "PLAYING..." } })
         Localisation::bindText (*b, english);
     Localisation::bind (content, [this] { content.repaint(); options.refreshText(); translateHostWindow(); });
 
@@ -3756,6 +3757,7 @@ void FaseGrooveGuitarEditor::layout()
     kitCombo.setBounds (1034, 256, 116, 40);
     channelCombo.setBounds (914, 298, 100, 40);
     strumSlider.setBounds (1034, 314, 116, 24);
+    playingButton.setBounds (1070, 234, 80, 20);
     tone.setBounds (914, 340, 76, 72);
     reverb.setBounds (994, 340, 76, 72);
     volume.setBounds (1074, 340, 76, 72);
@@ -4272,6 +4274,40 @@ void FaseGrooveGuitarEditor::importFile (const juce::File& file)
     showMessage (processor.importMidiGroove (file) ? tr ("Imported") + ": " + file.getFileNameWithoutExtension()
                                                    : tr ("No notes found in") + " " + file.getFileName());
     setView (0);
+}
+
+void FaseGrooveGuitarEditor::showPlayingMenu()
+{
+    // How the guitar is played, and how a sampled guitar (with keyswitches) is told.
+    auto isOn = [this] (const juce::String& id) { return processor.raw (id) > 0.5f; };
+    juce::PopupMenu menu;
+    menu.addSectionHeader (tr ("How the guitar is played"));
+    menu.addItem (1, tr ("Let ring (strums sound until the next chord)"), true, isOn (ParamIDs::letRing));
+    menu.addItem (2, tr ("Room for bass & piano (no low strings, stabs higher)"), true, isOn (ParamIDs::roomForBand));
+    menu.addItem (3, tr ("Push chord changes (the last 8th plays the next chord)"), true, isOn (ParamIDs::pushChanges));
+    menu.addSectionHeader (tr ("Sampled guitar"));
+    menu.addItem (4, tr ("Keyswitches (palm mute, dead notes, slides) and volume swells"), true, isOn (ParamIDs::keyswitches));
+    for (int a = 0; a < fgg::numArticulations; ++a)
+    {
+        juce::PopupMenu notes;
+        const int current = juce::roundToInt (processor.raw (ParamIDs::keyswitch (a)));
+        for (int n = 0; n < 40; ++n)
+            notes.addItem (100 + a * 64 + n, juce::MidiMessage::getMidiNoteName (n, true, true, 3), true, n == current);
+        menu.addSubMenu (tr ("Keyswitch") + " " + tr (fgg::articulationName (a)) + ": " + juce::MidiMessage::getMidiNoteName (current, true, true, 3),
+                         notes, isOn (ParamIDs::keyswitches));
+    }
+    juce::Component::SafePointer<FaseGrooveGuitarEditor> safe (this);
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&playingButton), [safe, isOn] (int result)
+    {
+        if (safe == nullptr || result <= 0)
+            return;
+        auto& p = safe->processor;
+        const char* toggles[] { ParamIDs::letRing, ParamIDs::roomForBand, ParamIDs::pushChanges, ParamIDs::keyswitches };
+        if (result <= 4)
+            p.setParameterFromUI (toggles[result - 1], isOn (toggles[result - 1]) ? 0.0f : 1.0f);
+        else if (result >= 100)
+            p.setParameterFromUI (ParamIDs::keyswitch ((result - 100) / 64), (float) ((result - 100) % 64));
+    });
 }
 
 void FaseGrooveGuitarEditor::showTemplateMenu()

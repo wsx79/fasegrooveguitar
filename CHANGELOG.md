@@ -4,6 +4,19 @@
 
 All notable changes to **Fase Groove Guitar**.
 
+## [0.4.0] - 2026-10-19
+
+- Real guitar shapes: every chord type on every root is voiced as a playable shape (one note per string, within four frets, a barre and three fingers), the 3rd and 7th always there. The shapes move with the progression: each chord stays close to the one before.
+- Strums: up strums quicker and on the top strings, accents quicker, the middle strings of a down strum loudest, ghost strums on the top strings only, a tiny per-string humanize; a plain strum never takes longer than most of a 16th.
+- Chank on the top two strings of the stab (funk style); the muted scratch and ghost strums are dead notes for sampled guitars.
+- New PLAYING... menu: Let ring (strums sound until the next chord), Room for bass & piano (no low strings, stabs higher), Push chord changes (the last 8th plays the next chord), Keyswitches for sampled guitars (sustain, palm mute, dead note, slide; notes C-2..D#1) with CC 11 volume swells, also in exported per-lane tracks.
+- Slides overlap their target (legato on sampled guitars); a new chord no longer cuts the grace note.
+- Fixed: chord tones dropped in some voicings (C# maj9/9/13/6/9 lost the 3rd); the power chord takes the chord's own 5th on diminished and augmented chords; the lick scale follows the chord (dominant, half-diminished, diminished, augmented, sus).
+- Fixed: a chord held as an inversion (C/E) was read with the wrong root.
+- Fixed: two chord hits on one step (or a big strum over a scratch) cut strings to nothing: they are one strum now, and a string always sounds at least 30 ms.
+- Fixed: choosing the relative key (C major to A minor) on the circle or over KEY link moved the chords; a key changed by the host now moves them too.
+- Fixed: no memory allocated on the audio thread for chords and notes; octaves stay within the guitar's range; the turnaround bar follows a new random seed; "Lydian Jack" named bVII+.
+
 ## [0.3.4] - 2026-10-19
 
 - Preserve early template/push hits at high tempos; regression checks compare different block sizes. README and privacy now describe the existing optional update check.

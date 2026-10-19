@@ -129,6 +129,27 @@ namespace
         }
     }
 
+    /** How a lane is played, for a sampled guitar's keyswitches: the scratch and the ghost
+        strums dead, the chank palm muted, the slide sliding, the rest let ring. */
+    int articulationOf (int lane, char symbol) noexcept
+    {
+        switch ((Lane) lane)
+        {
+            case Lane::scratch:   return (int) Articulation::dead;
+            case Lane::chank:     return (int) Articulation::palmMute;
+            case Lane::slide:     return (int) Articulation::slide;
+            case Lane::strumDown:
+            case Lane::strumUp:   return symbol == 'g' ? (int) Articulation::dead : (int) Articulation::sustain;
+            default:              return (int) Articulation::sustain;
+        }
+    }
+
+    /** Whether a lane's strum keeps ringing until the next chord hit (Let ring). */
+    bool ringsOn (int lane) noexcept
+    {
+        return lane == (int) Lane::strumDown || lane == (int) Lane::strumUp || lane == (int) Lane::power;
+    }
+
     /** The strings of a hit sound one after the other, as the pick crosses them: low to high on
         a down strum, high to low on an up strum and a scratch. One string: no strum. */
     bool strumsUp (int lane, int stepInBar) noexcept
@@ -139,6 +160,12 @@ namespace
             return stepInBar % 2 == 1;   // the hand goes up on the odd 16ths
         return false;
     }
+}
+
+const char* articulationName (int articulation) noexcept
+{
+    static const char* names[] { "Sustain", "Palm mute", "Dead note", "Slide" };
+    return articulation >= 0 && articulation < numArticulations ? names[articulation] : "";
 }
 
 GuitarSettings::GuitarSettings() noexcept
@@ -153,7 +180,7 @@ GuitarSettings::GuitarSettings() noexcept
         userRoll[(size_t) l].fill (0);
         customFill[(size_t) l].fill ('.');
     }
-    const auto first = progressionChords (genreProgression (0), 9);
+    static const auto first = progressionChords (genreProgression (0), 9);   // (worked out once: no allocation later)
     numChords = (int) first.size();
     for (size_t i = 0; i < chords.size(); ++i)
         chords[i] = first[i % first.size()];
@@ -164,7 +191,9 @@ GuitarSettings::GuitarSettings() noexcept
 GrooveEngine::GrooveEngine()
 {
     offTime.fill (-1.0);
+    onTime.fill (0.0);
     laneOf.fill (0);
+    graceOf.fill (false);
     pending.reserve (1024);
     scratch.reserve (128);
 }
@@ -174,6 +203,61 @@ ChordTones GrooveEngine::chordAt (const GuitarSettings& s, long long bar) noexce
     if (s.useLiveChord && s.liveChord.mask != 0)
         return s.liveChord;
     return tonesOf (s.chords[(size_t) mod (bar, std::clamp (s.numChords, 1, maxChords))]);
+}
+
+int GrooveEngine::chordPeriod (const GuitarSettings& s) noexcept
+{
+    const int n = std::clamp (s.numChords, 1, maxChords);
+    for (int period = 1; period < n; ++period)
+        if (n % period == 0)
+        {
+            bool repeats = true;
+            for (int i = period; i < n && repeats; ++i)
+                repeats = s.chords[(size_t) i] == s.chords[(size_t) (i % period)];
+            if (repeats)
+                return period;
+        }
+    return n;
+}
+
+const ChordVoicing& GrooveEngine::voicingAt (const GuitarSettings& s, long long bar)
+{
+    if (s.useLiveChord && s.liveChord.mask != 0)
+    {
+        // The chord held on the MIDI input: its shapes move from the last chord held.
+        if (! (s.liveChord == liveVoiced) || liveBand != s.roomForBand)
+        {
+            const bool near = liveVoiced.mask != 0 && liveBand == s.roomForBand;
+            const auto v = voiceChord (s.liveChord, near ? &liveVoicing : nullptr, s.roomForBand);
+            liveVoicing = v;
+            liveVoiced = s.liveChord;
+            liveBand = s.roomForBand;
+        }
+        return liveVoicing;
+    }
+
+    const int n = std::clamp (s.numChords, 1, maxChords);
+    const int period = chordPeriod (s);
+    bool same = n == voicedCount && voicedBand == s.roomForBand;
+    for (int i = 0; i < n && same; ++i)
+        same = s.chords[(size_t) i] == voicedChords[(size_t) i];
+    if (! same)
+    {
+        // Round the progression twice: the first chord's shapes then come from the last one's,
+        // so the loop joins up as smoothly as the rest.
+        slotVoicings[0] = voiceChord (tonesOf (s.chords[0]), nullptr, s.roomForBand);
+        if (period > 1)
+            for (int pass = 0; pass < 2; ++pass)
+                for (int i = pass == 0 ? 1 : 0; i < period; ++i)
+                {
+                    const auto v = voiceChord (tonesOf (s.chords[(size_t) i]), &slotVoicings[(size_t) mod (i - 1, period)], s.roomForBand);
+                    slotVoicings[(size_t) i] = v;
+                }
+        voicedChords = s.chords;
+        voicedCount = n;
+        voicedBand = s.roomForBand;
+    }
+    return slotVoicings[(size_t) (mod (bar, n) % period)];
 }
 
 GuitarPattern GrooveEngine::basePattern (const GuitarSettings& s)
@@ -227,21 +311,7 @@ int GrooveEngine::loopLengthInSteps (const GuitarSettings& s) noexcept
     if (! s.useLiveChord)
     {
         // The chords come round after numChords bars (or fewer, when they repeat inside).
-        const int n = std::clamp (s.numChords, 1, maxChords);
-        int chordBars = n;
-        for (int period = 1; period < n; ++period)
-            if (n % period == 0)
-            {
-                bool repeats = true;
-                for (int i = period; i < n && repeats; ++i)
-                    repeats = s.chords[(size_t) i] == s.chords[(size_t) (i % period)];
-                if (repeats)
-                {
-                    chordBars = period;
-                    break;
-                }
-            }
-        steps = lcm (steps, chordBars * 16);
+        steps = lcm (steps, chordPeriod (s) * 16);
     }
     if (s.variationEvery > 0)
         steps = lcm (steps, s.variationEvery * 16);
@@ -268,7 +338,8 @@ const GuitarPattern& GrooveEngine::patternFor (const GuitarSettings& s)
 
     if (s.pattern != cachedIndex || s.section != cachedSection || s.segmentOrder != cachedOrder
         || s.sectionVariation != cachedSectionVariation || s.grooveBars != cachedBars
-        || (usesSeed && (s.riffSeed != cachedSeed || s.density != cachedDensity || s.randomGenre != cachedGenre))
+        || s.riffSeed != cachedSeed   // (the variation bar takes it too)
+        || (usesSeed && (s.density != cachedDensity || s.randomGenre != cachedGenre))
         || (usesUser && s.user != cachedUser))
     {
         cachedPattern = resolvePattern (s);
@@ -292,6 +363,10 @@ void GrooveEngine::collectStep (long long step, const GuitarSettings& s, const G
     const long long bar = floorDiv (step, 16);
     const int stepInBar = mod (step, 16);
     const auto chord = chordAt (s, bar);
+    const ChordVoicing& voicing = voicingAt (s, bar);
+    // The chord of the next bar: the last 8th of a bar can push into it.
+    const auto nextChord = chordAt (s, bar + 1);
+    const ChordVoicing& nextVoicing = voicingAt (s, bar + 1);
 
     // Every N bars the last bar plays a variation of the groove (the turnaround).
     const bool varied = s.variationEvery > 0 && mod (bar, s.variationEvery) == s.variationEvery - 1
@@ -415,25 +490,54 @@ void GrooveEngine::collectStep (long long step, const GuitarSettings& s, const G
             level *= symbol == 'X' ? std::max (shape, 0.9) : shape * (1.0 + 0.25 * a);
         }
 
-        auto notes = laneNotes ((Lane) lane, chord, stepInBar, s.octaves[(size_t) lane]);
+        const bool chordHit = isChordLane (lane);
+        // A chord hit on the last 8th of a bar plays the chord coming next (the push).
+        const bool push = s.pushChanges && chordHit && stepInBar >= 14 && symbol != 'g' && ! (nextChord == chord);
+        // Now and then (with Humanize) the last bar of the phrase answers with another top note.
+        const bool answer = human > 0.0 && phraseBar == 3
+                         && (lane == (int) Lane::stab || lane == (int) Lane::slide || lane == (int) Lane::chank);
+        NoteList notes;
+        laneNotes ((Lane) lane, push ? nextChord : chord, push ? nextVoicing : voicing, stepInBar, s.octaves[(size_t) lane],
+                   notes, s.roomForBand, answer);
         for (auto& n : notes)
             n += transpose;
+        if (symbol == 'g' && lane == (int) Lane::strumDown && notes.size() > 4)
+        {
+            // A ghost strum only brushes the top strings.
+            NoteList top;
+            for (int i = notes.size() - 4; i < notes.size(); ++i)
+                top.add (notes[i]);
+            notes = top;
+        }
         const bool up = strumsUp (lane, stepInBar);
         if (up)
             std::reverse (notes.begin(), notes.end());
-        // The pick crosses the strings: a few ms each, a rake ('f') slower and every string heard.
-        const double gap = std::clamp ((double) s.strumMs, 0.0, 60.0) * beatsPerMs * (symbol == 'f' ? 2.6 : 1.0)
-                         * (lane == (int) Lane::scratch || lane == (int) Lane::stab ? 0.5 : 1.0);
-        const bool chordHit = isChordLane (lane);
+        // The pick crosses the strings: a few ms each, a rake ('f') slower and every string heard,
+        // an up strum and an accent quicker. A plain strum never takes longer than most of a 16th.
+        double gap = std::clamp ((double) s.strumMs, 0.0, 60.0) * beatsPerMs * (symbol == 'f' ? 2.6 : 1.0)
+                   * (lane == (int) Lane::scratch || lane == (int) Lane::stab ? 0.5 : 1.0)
+                   * (up ? 0.7 : 1.0) * (symbol == 'X' ? 0.85 : 1.0);
+        if (symbol != 'f' && notes.size() > 1)
+            gap = std::min (gap, 0.75 * stepLength / (double) (notes.size() - 1));
+        const int articulation = articulationOf (lane, symbol);
 
         auto strum = [&] (double at, double length, double strumLevel, int extraSalt)
         {
-            for (size_t i = 0; i < notes.size(); ++i)
+            const double middle = 0.4 * (double) (notes.size() - 1);
+            double previous = at;
+            for (int i = 0; i < notes.size(); ++i)
             {
-                // The strings struck last are a touch softer (the pick slows down).
-                const double stringLevel = strumLevel * (1.0 - 0.05 * (double) i);
-                pending.push_back ({ at + gap * (double) i, notes[i], velocityFor (lane, stringLevel, salt + extraSalt + (int) i),
-                                     std::max (0.02, length - gap * (double) i), lane, chordHit && i == 0 });
+                // A down strum digs into the middle strings; an up strum's first strings (the
+                // high ones) sound most, the pick slowing down after them.
+                const double stringLevel = strumLevel * (up ? 1.0 - 0.06 * (double) i : 1.0 - 0.06 * std::abs ((double) i - middle));
+                // Each string a hair early or late (with Humanize), never before the one before.
+                double when = at + gap * (double) i;
+                if (i > 0)
+                    when = std::max (previous, when + human * 1.5 * beatsPerMs * (noise (step, seedSalt + salt + extraSalt + 7 * i + 3) - 0.5) * 2.0);
+                previous = when;
+                pending.push_back ({ when, notes[i], velocityFor (lane, stringLevel, salt + extraSalt + i),
+                                     std::max (0.6 * length, length - gap * (double) i), lane, chordHit && i == 0 });
+                pending.back().articulation = articulation;
             }
         };
 
@@ -446,10 +550,30 @@ void GrooveEngine::collectStep (long long step, const GuitarSettings& s, const G
                 strum (t + each * k, each * 0.9, level * (k == 0 ? 1.0 : 0.82), k * 17);
             return;
         }
-        if (lane == (int) Lane::slide)   // a semitone below, slid up into the chord
-            for (size_t i = 0; i < notes.size(); ++i)
-                pending.push_back ({ t - 0.09 + gap * (double) i, notes[i] - 1, velocityFor (lane, 0.6 * level, salt + 5), 0.08, lane, i == 0 });
-        strum (t, noteLength (lane) * stepLength, level, 0);
+        if (lane == (int) Lane::slide)
+        {
+            // A semitone below, slid up into the chord: the grace note still sounds when the
+            // chord arrives (a sampled guitar hears the overlap as a legato slide).
+            const double overlap = 20.0 * beatsPerMs;
+            for (int i = 0; i < notes.size(); ++i)
+            {
+                pending.push_back ({ t - 0.09 + gap * (double) i, notes[i] - 1, velocityFor (lane, 0.6 * level, salt + 5), 0.09 + overlap, lane, i == 0 });
+                pending.back().articulation = articulation;
+                pending.back().grace = true;
+            }
+        }
+        if (lane == (int) Lane::swell && s.keyswitches)
+        {
+            // The volume swell, as a sampled guitar needs it: CC 11 from nothing to full.
+            const double rise = 350.0 * beatsPerMs;
+            for (int k = 0; k <= 7; ++k)
+            {
+                pending.push_back ({ t + rise * k / 7.0, 11, (int) std::lround (127.0 * k / 7.0), 0.0, lane });
+                pending.back().controller = 11;
+            }
+        }
+        const double length = s.letRing && ringsOn (lane) ? 16.0 * stepLength : noteLength (lane) * stepLength;
+        strum (t, length, level, 0);
     };
 
     // ---- The groove as written (what a fill leaves of it) ----
@@ -458,18 +582,64 @@ void GrooveEngine::collectStep (long long step, const GuitarSettings& s, const G
         return isHit (pattern.lanes[(size_t) lane][(size_t) pos]) && ! s.muted[(size_t) lane]
             && ! (inFill && ! fillKeeps (style, lane, customLanes));
     };
+    // The big strum: after a fill, and every 8 bars of the drop.
+    const bool bigStrum = stepInBar == 0 && s.strumAfterFill && pattern.lanes[(size_t) Lane::strumDown][(size_t) pos] == '.'
+                       && ! s.muted[(size_t) Lane::strumDown]
+                       && (isFillBar (bar - 1) || (s.section == Section::drop && mod (bar - s.sectionStartBar, 8) == 0));
+
+    // Whether the fill strikes a chord on this step (the scratch then leaves it to the fill).
+    auto fillStrikesChord = [&]
+    {
+        if (! inFill)
+            return false;
+        const int i = stepInBar;
+        switch (style)
+        {
+            case FillStyle::strumBuild:
+            case FillStyle::scratchBuild:
+            case FillStyle::chankLift:    return true;
+            case FillStyle::dropOut:      return i == 15;
+            case FillStyle::slideUp:      return i == 12 || i == 14;
+            case FillStyle::stabStutter:  return i != 13;
+            case FillStyle::swellOut:     return i == 8;
+            case FillStyle::custom:
+                for (int l = 0; l < numLanes; ++l)
+                    if (isChordLane (l) && isHit (s.customFill[(size_t) l][(size_t) i]))
+                        return true;
+                return false;
+            default:                      return false;
+        }
+    };
+    const bool fillChord = fillStrikesChord();
+
     for (int lane = 0; lane < numLanes; ++lane)
     {
         char symbol = pattern.lanes[(size_t) lane][(size_t) pos];
         if (inFill && ! fillKeeps (style, lane, customLanes))
             continue;
+        if (bigStrum && isChordLane (lane))
+            continue;   // the big strum plays for every chord hit of the step
         if (lane == (int) Lane::scratch && isHit (symbol))
         {
             // The scratch fills the gaps: where another chord hit plays, the hand plays that.
-            bool covered = false;
+            bool covered = fillChord;
             for (int other = 0; other < numLanes; ++other)
                 covered = covered || (other != lane && isChordLane (other) && plays (other));
             if (covered)
+                continue;
+        }
+        else if (isChordLane (lane) && plays (lane))
+        {
+            // One hand: two chord hits on the same step are one strum, the louder one.
+            bool louder = false;
+            for (int other = 0; other < numLanes && ! louder; ++other)
+            {
+                if (other == lane || other == (int) Lane::scratch || ! isChordLane (other) || ! plays (other))
+                    continue;
+                const double mine = symbolLevel (symbol), theirs = symbolLevel (pattern.lanes[(size_t) other][(size_t) pos]);
+                louder = theirs > mine || (theirs == mine && other < lane);
+            }
+            if (louder)
                 continue;
         }
         // ...and now and then a soft scratch that isn't written, just before the next bar.
@@ -553,13 +723,8 @@ void GrooveEngine::collectStep (long long step, const GuitarSettings& s, const G
     }
 
     // ---- A big strum: after a fill, and every 8 bars of the drop ----
-    if (stepInBar == 0 && s.strumAfterFill && pattern.lanes[(size_t) Lane::strumDown][(size_t) pos] == '.')
-    {
-        const bool afterFill = isFillBar (bar - 1);
-        const bool dropPhrase = s.section == Section::drop && mod (bar - s.sectionStartBar, 8) == 0;
-        if (afterFill || dropPhrase)
-            add ((int) Lane::strumDown, 'X', 0, 1.0, true);
-    }
+    if (bigStrum)
+        add ((int) Lane::strumDown, 'X', 0, 1.0, true);
 }
 
 //==============================================================================
@@ -614,24 +779,51 @@ void GrooveEngine::render (double startPpq, double endPpq, const GuitarSettings&
     std::sort (pending.begin(), pending.end(), [] (const PendingOn& a, const PendingOn& b)
     { return a.ppq < b.ppq || (a.ppq == b.ppq && a.order < b.order); });
 
+    // A string just struck always sounds a little before a new chord stops it.
+    const double minimumRing = 30.0 * beatsPerMs;
     for (const auto& p : pending)
     {
         flushOffsUpTo (p.ppq, true, out);
 
+        if (p.controller >= 0)
+        {
+            out.push_back ({ p.ppq, p.note, p.velocity, p.lane, p.controller });
+            continue;
+        }
+
         // One guitar, six strings: a new chord stops the chord still ringing.
         if (p.choke)
             for (int n = 0; n < 128; ++n)
-                if (offTime[(size_t) n] >= 0.0 && isChordLane (laneOf[(size_t) n]))
-                    offTime[(size_t) n] = p.ppq;
+                if (offTime[(size_t) n] >= 0.0 && isChordLane (laneOf[(size_t) n]) && ! graceOf[(size_t) n])
+                    offTime[(size_t) n] = std::min (offTime[(size_t) n], std::max (p.ppq, onTime[(size_t) n] + minimumRing));
         flushOffsUpTo (p.ppq, true, out);
+
+        // The articulation keyswitch, sent when it changes, just before the note it is for.
+        if (s.keyswitches && p.articulation != lastArticulation)
+        {
+            const int ks = std::clamp (s.keyswitch[(size_t) std::clamp (p.articulation, 0, numArticulations - 1)], 0, 127);
+            if (ks != p.note)
+            {
+                if (offTime[(size_t) ks] >= 0.0)
+                    out.push_back ({ p.ppq, ks, 0, laneOf[(size_t) ks] });
+                out.push_back ({ p.ppq, ks, 100, keyswitchLane });
+                offTime[(size_t) ks] = p.ppq + 0.03;
+                onTime[(size_t) ks] = p.ppq;
+                laneOf[(size_t) ks] = keyswitchLane;
+                graceOf[(size_t) ks] = false;
+            }
+            lastArticulation = p.articulation;
+        }
 
         auto& off = offTime[(size_t) p.note];
         if (off >= 0.0)
             out.push_back ({ p.ppq, p.note, 0, laneOf[(size_t) p.note] });   // the same string again
 
-        out.push_back ({ p.ppq, p.note, p.velocity, p.lane });
+        out.push_back ({ p.ppq, p.note, p.velocity, p.lane, -1, p.articulation });
         off = p.ppq + p.duration;
+        onTime[(size_t) p.note] = p.ppq;
         laneOf[(size_t) p.note] = p.lane;
+        graceOf[(size_t) p.note] = p.grace;
     }
 
     flushOffsUpTo (endPpq, false, out);
@@ -645,6 +837,7 @@ void GrooveEngine::allNotesOff (double ppq, std::vector<NoteEvent>& out)
             out.push_back ({ ppq, n, 0, laneOf[(size_t) n] });
             offTime[(size_t) n] = -1.0;
         }
+    lastArticulation = -1;   // after a stop or a jump the next note sends its keyswitch again
 }
 
 bool GrooveEngine::anyNoteSounding() const noexcept

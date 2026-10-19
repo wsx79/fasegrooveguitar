@@ -84,6 +84,211 @@ namespace
     {
         return (c.mask >> (unsigned) (((note - c.root) % 12 + 12) % 12)) & 1u;
     }
+
+    /** A shape a hand can play: one note per string on side by side strings (low to high), the
+        fretted notes within four frets. */
+    bool playable (const NoteList& notes)
+    {
+        for (int first = 0; first + notes.size() <= 6; ++first)
+        {
+            int low = 99, high = 0;
+            bool fits = true;
+            for (int i = 0; i < notes.size(); ++i)
+            {
+                const int fret = notes[i] - openStrings[(size_t) (first + i)];
+                fits = fits && fret >= 0 && fret <= 15;
+                if (fret > 0)
+                    low = std::min (low, fret), high = std::max (high, fret);
+            }
+            if (fits && (high < low || high - low <= 3))
+                return true;
+        }
+        return false;
+    }
+
+    /** Whether the note stream has a note shorter than `beats`. */
+    bool hasNoteShorterThan (const std::vector<NoteEvent>& events, double beats)
+    {
+        std::map<int, double> on;
+        for (const auto& e : events)
+        {
+            if (e.isController() || e.lane == keyswitchLane)
+                continue;
+            if (e.isNoteOn())
+                on[e.note] = e.ppq;
+            else if (on.count (e.note) != 0)
+            {
+                if (e.ppq - on[e.note] < beats)
+                    return true;
+                on.erase (e.note);
+            }
+        }
+        return false;
+    }
+}
+
+//==============================================================================
+static void testShapes()
+{
+    // Every chord type on every root: real shapes, one note per string, within four frets, the
+    // 3rd always there; from no chord, after another chord, with room for the band.
+    for (int band = 0; band < 2; ++band)
+    {
+        ChordVoicing previous;
+        bool chained = false;
+        for (int root = 0; root < 12; ++root)
+            for (int type = 0; type < numChordTypes; ++type)
+            {
+                const auto chord = tonesOf ({ root, type });
+                const auto v = voiceChord (chord, chained ? &previous : nullptr, band == 1);
+                for (const auto* shape : { &v.full, &v.stab, &v.four, &v.stabAlt })
+                {
+                    CHECK (! shape->empty() && playable (*shape));
+                    for (int n : *shape)
+                        CHECK (isChordTone (chord, n) && n >= 40 && n <= 84);
+                }
+                CHECK (v.full.size() >= 4 && v.full.front() % 12 == root);
+                if (band == 1)
+                    CHECK (v.full.front() >= 48 && v.stab.front() >= 60);
+                const bool hasThird = (chord.mask & ((1u << 3u) | (1u << 4u))) != 0;
+                bool third = ! hasThird;
+                for (int n : v.full)
+                    third = third || (((n - root) % 12 + 12) % 12 == 3 || ((n - root) % 12 + 12) % 12 == 4);
+                CHECK (third);
+                previous = v;
+                chained = true;
+            }
+    }
+
+    // The shapes move: from Am7 to Dm7 the strummed chord stays near (no jump across the neck).
+    const auto am = voiceChord (tonesOf ({ 9, (int) ChordType::m7 }));
+    const auto dm = voiceChord (tonesOf ({ 2, (int) ChordType::m7 }), &am);
+    CHECK (std::abs (dm.stab.back() - am.stab.back()) <= 5);
+
+    // An inversion keeps its root: C/E is C, not E.
+    CHECK (tonesOfNotes ({ 52, 55, 60 }) == tonesOf ({ 0, (int) ChordType::major }));
+    CHECK (tonesOfNotes ({ 45, 48, 52, 55 }).root == 9);
+    // The power chord takes the flat 5th of a diminished chord; the lick leaves the 5th out
+    // over a half-diminished one.
+    const auto dim = tonesOf ({ 11, (int) ChordType::halfDim });
+    const auto power = laneNotes (Lane::power, dim, 0);
+    CHECK (power[1] - power[0] == 6);
+    for (int step = 0; step < 16; ++step)
+        CHECK (((laneNotes (Lane::lick, dim, step)[0] - 11) % 12 + 12) % 12 != 7);
+    // The octave control never leaves the guitar.
+    for (int o : { -2, 2 })
+        for (int l = 0; l < numLanes; ++l)
+            for (int n : laneNotes ((Lane) l, tonesOf ({ 4, (int) ChordType::m11 }), 0, o))
+                CHECK (n >= 40 && n <= 88);
+}
+
+static void testPlayingStyle()
+{
+    // A big strum and a scratch on the same downbeat: no string cut to nothing.
+    {
+        GuitarSettings s;
+        s.pattern = 15;   // Jack Stab: offbeat stabs over a scratch on every 16th
+        CHECK (guitarPatterns()[(size_t) s.pattern].name == "Jack Stab");
+        s.fillEveryBars = 2;
+        s.strumAfterFill = true;
+        const auto events = GrooveEngine::renderClip (s, 32.0);
+        CHECK (wellFormed (events));
+        CHECK (! hasNoteShorterThan (events, 0.02));
+    }
+    // Two chord hits on one step are one strum.
+    {
+        auto s = only ({ { Lane::strumDown, "x... .... .... ...." }, { Lane::stab, "X... .... .... ...." } });
+        const auto events = GrooveEngine::renderClip (s, 4.0);
+        CHECK (countOns (events, (int) Lane::strumDown) == 0 && countOns (events, (int) Lane::stab) == 3);
+        CHECK (! hasNoteShorterThan (events, 0.02));
+    }
+    // Up strums are quicker than down strums.
+    {
+        auto spread = [] (Lane lane, const char* line)
+        {
+            auto s = only ({ { lane, line } });
+            s.strumMs = 20.0f;
+            double first = 1.0e9, last = -1.0e9;
+            int n = 0;
+            for (const auto& e : GrooveEngine::renderClip (s, 1.0))
+                if (e.isNoteOn())
+                    first = std::min (first, e.ppq), last = std::max (last, e.ppq), ++n;
+            return (last - first) / std::max (1, n - 1);
+        };
+        CHECK (spread (Lane::strumUp, "..x.") < spread (Lane::strumDown, "x...") * 0.8);
+    }
+    // Let ring: a strum sounds until the next chord hit.
+    {
+        auto s = only ({ { Lane::strumDown, "x... .... x... ...." } });
+        auto ringLength = [&s]
+        {
+            double longest = 0.0;
+            std::map<int, double> on;
+            for (const auto& e : GrooveEngine::renderClip (s, 4.0))
+                if (e.isNoteOn())
+                    on[e.note] = e.ppq;
+                else if (on.count (e.note) != 0 && on[e.note] < 1.0)
+                    longest = std::max (longest, e.ppq - on[e.note]);
+            return longest;
+        };
+        const double plain = ringLength();
+        s.letRing = true;
+        CHECK (ringLength() > plain * 2.0 && ringLength() <= 2.0 + 1.0e-9);
+    }
+    // Room for the band: no strummed note below C3, the root and power chord up an octave.
+    {
+        auto s = only ({ { Lane::strumDown, "x... x... x... x..." }, { Lane::power, "..x. ..x. ..x. ..x." } });
+        s.roomForBand = true;
+        for (const auto& e : GrooveEngine::renderClip (s, 16.0))
+            if (e.isNoteOn())
+                CHECK (e.note >= 48);
+    }
+    // The last 8th of a bar pushes into the next chord.
+    {
+        auto s = only ({ { Lane::stab, ".... .... .... ..x." } });
+        s.chords = { Chord { 9, (int) ChordType::m7 }, Chord { 1, (int) ChordType::major }, Chord { 9, (int) ChordType::m7 }, Chord { 1, (int) ChordType::major } };
+        s.numChords = 2;
+        for (const auto& e : GrooveEngine::renderClip (s, 4.0))
+            if (e.isNoteOn())
+                CHECK (isChordTone (tonesOf (s.chords[1]), e.note));
+        s.pushChanges = false;
+        for (const auto& e : GrooveEngine::renderClip (s, 4.0))
+            if (e.isNoteOn())
+                CHECK (isChordTone (tonesOf (s.chords[0]), e.note));
+    }
+    // Keyswitches: one before the first note of each articulation, below the guitar; the swell
+    // rises with CC 11; the slide's grace note overlaps its chord.
+    {
+        auto s = only ({ { Lane::stab, "x... .... .... ...." }, { Lane::scratch, ".x.. .... .... ...." }, { Lane::chank, "..x. .... .... ...." },
+                         { Lane::swell, ".... X... .... ...." }, { Lane::slide, ".... .... X... ...." } });
+        s.keyswitches = true;
+        const auto events = GrooveEngine::renderClip (s, 4.0);
+        CHECK (wellFormed (events));
+        std::vector<int> switches;
+        for (const auto& e : events)
+            if (e.isNoteOn() && e.lane == keyswitchLane)
+                switches.push_back (e.note);
+        CHECK ((switches == std::vector<int> { 24, 26, 25, 24, 27 }));
+        int rising = 0;
+        for (const auto& e : events)
+            rising += e.isController() && e.note == 11 ? 1 : 0;
+        CHECK (rising >= 2);
+        double graceOff = -1.0, chordOn = 1.0e9;
+        for (const auto& e : events)
+            if (e.lane == (int) Lane::slide)
+            {
+                if (e.isNoteOn() && e.ppq < 2.0 - 1.0e-9 && graceOff < 0.0)
+                    graceOff = 0.0;
+                if (e.isNoteOn() && e.ppq >= 2.0 - 1.0e-9)
+                    chordOn = std::min (chordOn, e.ppq);
+                if (! e.isNoteOn() && ! e.isController() && e.ppq > 1.5 && e.ppq < 2.5 && graceOff >= 0.0 && graceOff < 1.0)
+                    graceOff = e.ppq;
+            }
+        CHECK (graceOff > chordOn);
+        s.keyswitches = false;
+        for (const auto& e : GrooveEngine::renderClip (s, 4.0))
+            CHECK (e.lane != keyswitchLane && ! e.isController());
+    }
 }
 
 //==============================================================================
@@ -190,12 +395,15 @@ static void testVoicings()
             CHECK (stab.size() == 3);
             for (size_t i = 0; i + 1 < stab.size(); ++i)
                 CHECK (stab[i + 1] - stab[i] >= 2);                  // no semitone clusters
-            CHECK (laneNotes (Lane::chank, chord, 0).size() == 1);
+            const auto chank = laneNotes (Lane::chank, chord, 0);
+            CHECK (chank.size() == 2 && chank.back() == stab.back());   // the stab's top two strings
             CHECK (laneNotes (Lane::root, chord, 0) == std::vector<int> { full.front() });
             const auto oct = laneNotes (Lane::octave, chord, 0);
             CHECK (oct.size() == 2 && oct[1] - oct[0] == 12 && oct[0] % 12 == root);
             const auto power = laneNotes (Lane::power, chord, 0);
-            CHECK (power.size() == 3 && power[1] - power[0] == 7);
+            CHECK (power.size() == 3 && power[2] - power[0] == 12);
+            CHECK (isChordTone (chord, power[1])                                       // its own 5th (flat on a diminished chord)
+                   || (power[1] - power[0] == 7 && ! isChordTone (chord, power[0] + 6) && ! isChordTone (chord, power[0] + 8)));
             CHECK (laneNotes (Lane::strumUp, chord, 0).size() <= 4);
         }
 
@@ -256,7 +464,7 @@ static void testStrumsAndChords()
     for (size_t i = 0; i + 1 < first.size(); ++i)
     {
         CHECK (first[i].note < first[i + 1].note);                                  // low to high
-        CHECK (std::abs ((first[i + 1].ppq - first[i].ppq) - 10.0 * 120.0 / 60000.0) < 1.0e-6);   // 10 ms apart
+        CHECK (std::abs ((first[i + 1].ppq - first[i].ppq) - 0.85 * 10.0 * 120.0 / 60000.0) < 1.0e-6);   // 10 ms apart (an accent: quicker)
     }
     for (const auto& e : first)
         CHECK (isChordTone (tonesOf (s.chords[0]), e.note));
@@ -337,6 +545,7 @@ static void testSwingAndHumanize()
 {
     auto s = only ({ { Lane::chank, "xxxx xxxx xxxx xxxx" } });
     s.swing = 1.0f;
+    s.strumMs = 0.0f;
     for (const auto& e : GrooveEngine::renderClip (s, 4.0))
         if (e.isNoteOn())
         {
@@ -638,6 +847,8 @@ int main()
     testPresets();
     testLanesAndChords();
     testVoicings();
+    testShapes();
+    testPlayingStyle();
     testRenderBasics();
     testStrumsAndChords();
     testOneGuitar();

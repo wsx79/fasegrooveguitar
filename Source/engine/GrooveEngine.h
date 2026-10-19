@@ -3,7 +3,7 @@
 
 #pragma once
 
-// Drum sequencer. Turns a musical-time window (in quarter notes, "ppq") into
+// Guitar sequencer. Turns a musical-time window (in quarter notes, "ppq") into
 // note on/off events. Pure C++ (no JUCE).
 
 #include "Guitar.h"
@@ -16,6 +16,15 @@
 
 namespace fgg
 {
+
+/** How a hit is played, for a sampled guitar with keyswitches: let ring, palm muted, a dead
+    (muted) note, a slide. */
+enum class Articulation { sustain = 0, palmMute, dead, slide };
+constexpr int numArticulations = 4;
+const char* articulationName (int articulation) noexcept;   // "Sustain", "Palm mute" ...
+
+/** The lane of a keyswitch note in the note stream (not a string of the guitar). */
+constexpr int keyswitchLane = numLanes;
 
 struct GuitarSettings
 {
@@ -89,6 +98,13 @@ struct GuitarSettings
     // in forcedFillStyle (< 0: no fill at all).
     long long forcedFillBar = -1;
     int forcedFillStyle = -1;
+
+    // How the guitar is played.
+    bool letRing = false;                  // strums ring on until the next chord hit stops them
+    bool roomForBand = false;              // the low strings left to the bass, the stabs above the piano
+    bool pushChanges = true;               // the hits on the last 8th of a bar play the next chord
+    bool keyswitches = false;              // articulation keyswitches (and the swell's volume) in the MIDI
+    std::array<int, numArticulations> keyswitch { 24, 25, 26, 27 };   // their notes (below the guitar)
 };
 
 struct NoteEvent
@@ -97,7 +113,10 @@ struct NoteEvent
     int note;
     int velocity;   // 0 for note-off
     int lane = 0;
-    bool isNoteOn() const noexcept { return velocity > 0; }
+    int controller = -1;   // >= 0: a controller change (CC number in `note`, value in `velocity`)
+    int articulation = 0;  // how a note-on is played (Articulation)
+    bool isNoteOn() const noexcept { return velocity > 0 && controller < 0; }
+    bool isController() const noexcept { return controller >= 0; }
 };
 
 //==============================================================================
@@ -139,8 +158,16 @@ public:
     /** The chord tones of a bar: the chord of its slot, or the one held on the MIDI input. */
     static ChordTones chordAt (const GuitarSettings& s, long long bar) noexcept;
 
+    /** After how many bars the chords come round (fewer than numChords when they repeat inside). */
+    static int chordPeriod (const GuitarSettings& s) noexcept;
+
+    /** The shapes of a bar's chord on the neck, each moving as little as it can from the one
+        before (the progression's chain, the same every time round). */
+    const ChordVoicing& voicingAt (const GuitarSettings& s, long long bar);
+
 private:
-    struct PendingOn { double ppq; int note; int velocity; double duration; int lane; bool choke = false; std::size_t order = 0; };
+    struct PendingOn { double ppq; int note; int velocity; double duration; int lane; bool choke = false; std::size_t order = 0;
+                       int articulation = 0; bool grace = false; int controller = -1; };
 
     const GuitarPattern& patternFor (const GuitarSettings& s);
     void collectStep (long long step, const GuitarSettings& s, const GuitarPattern& pattern, const GuitarPattern& variation);
@@ -148,6 +175,18 @@ private:
 
     std::array<double, 128> offTime {};   // < 0 when the note is not sounding
     std::array<int, 128> laneOf {};
+    std::array<double, 128> onTime {};
+    std::array<bool, 128> graceOf {};    // a slide's grace note: a new chord doesn't stop it
+    int lastArticulation = -1;
+
+    // The shapes of the chords, worked out when the chords change.
+    std::array<ChordVoicing, maxChords> slotVoicings {};
+    std::array<Chord, maxChords> voicedChords {};
+    int voicedCount = -1;
+    bool voicedBand = false;
+    ChordTones liveVoiced { 0, 0 };
+    ChordVoicing liveVoicing {};
+    bool liveBand = false;
     std::vector<PendingOn> pending;
     std::vector<int> scratch;
 

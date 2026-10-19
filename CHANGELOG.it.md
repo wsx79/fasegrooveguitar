@@ -4,6 +4,19 @@
 
 Tutte le modifiche importanti di **Fase Groove Guitar**.
 
+## [0.4.0] - 2026-10-19
+
+- Diteggiature vere: ogni tipo di accordo su ogni fondamentale è una forma suonabile (una nota per corda, entro quattro tasti, un barré e tre dita), terza e settima sempre presenti. Le forme seguono la progressione: ogni accordo resta vicino al precedente.
+- Pennate: in levare più rapide e sulle corde alte, accenti più rapidi, nella pennata in battere le corde centrali più forti, ghost solo sulle corde alte, una piccola umanizzazione per corda; una pennata normale non dura mai più di gran parte di un sedicesimo.
+- Chank sulle due corde alte dello stab (stile funk); lo scratch stoppato e le pennate ghost sono note stoppate per le chitarre campionate.
+- Nuovo menu SUONO...: Lascia vibrare (le pennate suonano fino all'accordo successivo), Spazio a basso e piano (niente corde basse, stab più alti), Anticipa i cambi d'accordo (l'ultimo ottavo suona l'accordo successivo), Keyswitch per chitarre campionate (sustain, palm mute, nota stoppata, slide; note C-2..D#1) con crescendo di volume CC 11, anche nelle tracce per corsia esportate.
+- Gli slide si sovrappongono alla nota d'arrivo (legato sulle chitarre campionate); un nuovo accordo non taglia più l'abbellimento.
+- Corretto: note dell'accordo perse in alcune diteggiature (C# maj9/9/13/6/9 perdevano la terza); il power chord prende la quinta dell'accordo su diminuiti e aumentati; la scala del lick segue l'accordo (dominante, semidiminuito, diminuito, aumentato, sus).
+- Corretto: un accordo tenuto in rivolto (C/E) veniva letto con la fondamentale sbagliata.
+- Corretto: due colpi d'accordo sullo stesso step (o una big strum sopra uno scratch) tagliavano le corde a zero: ora sono una pennata sola, e una corda suona sempre almeno 30 ms.
+- Corretto: scegliere la tonalità relativa (Do maggiore - La minore) sul circolo o col link KEY spostava gli accordi; una tonalità cambiata dall'host ora li sposta.
+- Corretto: nessuna memoria allocata nel thread audio per accordi e note; le ottave restano nell'estensione della chitarra; la battuta di turnaround segue un nuovo seed; "Lydian Jack" chiamato bVII+.
+
 ## [0.3.4] - 2026-10-19
 
 - Corretti i colpi anticipati da template e push ai tempi elevati; test di indipendenza dalla dimensione dei blocchi. README e privacy descrivono il controllo aggiornamenti facoltativo già presente.

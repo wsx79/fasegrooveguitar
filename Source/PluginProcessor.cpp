@@ -202,6 +202,18 @@ juce::AudioProcessorValueTreeState::ParameterLayout FaseGrooveGuitarProcessor::c
     }
     group ("lanes", "Lanes");
 
+    // Playing: how the guitar is played, and how a sampled guitar is told (appended: older
+    // projects load with these defaults)
+    toggle (ParamIDs::letRing, "Let ring", false);
+    toggle (ParamIDs::roomForBand, "Room for bass & piano", false);
+    toggle (ParamIDs::pushChanges, "Push chord changes", true);
+    toggle (ParamIDs::keyswitches, "Keyswitches", false);
+    for (int a = 0; a < fgg::numArticulations; ++a)
+        add (std::make_unique<AudioParameterInt> (ParameterID { ParamIDs::keyswitch (a), 1 }, String ("Keyswitch ") + fgg::articulationName (a),
+                                                  0, 39, 24 + a, AudioParameterIntAttributes().withStringFromValueFunction ([] (int v, int)
+                                                      { return MidiMessage::getMidiNoteName (v, true, true, 3); })));
+    group ("playing", "Playing");
+
     return layout;
 }
 
@@ -227,6 +239,7 @@ FaseGrooveGuitarProcessor::FaseGrooveGuitarProcessor()
     for (auto& f : laneFlash)
         f = 0.0f;
     resetSong();
+    appliedKey = juce::roundToInt (raw (ParamIDs::key));
     linkTimer.startTimer (150);
 }
 
@@ -321,6 +334,12 @@ fgg::GuitarSettings FaseGrooveGuitarProcessor::currentSettings() const
     s.useLiveChord = followsHeldChord();
     s.liveChord = heldChord();
     s.strumMs = raw (ParamIDs::strum);
+    s.letRing = raw (ParamIDs::letRing) > 0.5f;
+    s.roomForBand = raw (ParamIDs::roomForBand) > 0.5f;
+    s.pushChanges = raw (ParamIDs::pushChanges) > 0.5f;
+    s.keyswitches = raw (ParamIDs::keyswitches) > 0.5f;
+    for (int a = 0; a < fgg::numArticulations; ++a)
+        s.keyswitch[(size_t) a] = juce::jlimit (0, 39, juce::roundToInt (raw (ParamIDs::keyswitch (a))));
     s.grooveTemplate.active = templateActive.load();
     for (int i = 0; i < 16; ++i)
     {
@@ -707,6 +726,7 @@ void FaseGrooveGuitarProcessor::applyProgression (int index)
     setParameterFromUI (ParamIDs::progression, (float) index);
     setParameterFromUI (ParamIDs::scale, (float) fgg::progressions()[(size_t) index].scale);
     setChords (fgg::progressionChords (index, juce::roundToInt (raw (ParamIDs::key)), juce::roundToInt (raw (ParamIDs::chordColour))));
+    appliedKey = juce::roundToInt (raw (ParamIDs::key));   // the chords are in this key now
 }
 
 void FaseGrooveGuitarProcessor::setChords (const std::vector<fgg::Chord>& chords)
@@ -733,6 +753,7 @@ void FaseGrooveGuitarProcessor::newCircleOfFifths()
     const int length = chordCount() >= 3 ? chordCount() : 4;
     setChords (fgg::circleOfFifthsProgression (freshSeed(), juce::roundToInt (raw (ParamIDs::key)), juce::roundToInt (raw (ParamIDs::scale)),
                                                length, juce::roundToInt (raw (ParamIDs::chordColour))));
+    appliedKey = juce::roundToInt (raw (ParamIDs::key));
 }
 
 void FaseGrooveGuitarProcessor::transposeChords (int semitones)
@@ -748,15 +769,45 @@ void FaseGrooveGuitarProcessor::transposeChords (int semitones)
 void FaseGrooveGuitarProcessor::setKey (int key)
 {
     key = (key % 12 + 12) % 12;
-    const int old = juce::roundToInt (raw (ParamIDs::key));
+    // From the key the chords are in (the parameter may have moved without them).
+    const int old = appliedKey.load() >= 0 ? appliedKey.load() : juce::roundToInt (raw (ParamIDs::key));
+    appliedKey = key;
+    if (juce::roundToInt (raw (ParamIDs::key)) != key)
+        setParameterFromUI (ParamIDs::key, (float) key);
     if (key == old)
         return;
     // The shortest way: up to six semitones up or down.
     int delta = ((key - old) % 12 + 12) % 12;
     if (delta > 6)
         delta -= 12;
-    setParameterFromUI (ParamIDs::key, (float) key);
     transposeChords (delta);
+}
+
+void FaseGrooveGuitarProcessor::setKeyAndScale (int key, int scale)
+{
+    key = (key % 12 + 12) % 12;
+    scale = juce::jlimit (0, fgg::numScales - 1, scale);
+    const int old = appliedKey.load() >= 0 ? appliedKey.load() : juce::roundToInt (raw (ParamIDs::key));
+    const int oldScale = juce::roundToInt (raw (ParamIDs::scale));
+    // Measured on the relative major: C major to A minor moves nothing.
+    const int from = old + (fgg::scaleIsMinor (oldScale) ? 3 : 0), to = key + (fgg::scaleIsMinor (scale) ? 3 : 0);
+    int delta = ((to - from) % 12 + 12) % 12;
+    if (delta > 6)
+        delta -= 12;
+    appliedKey = key;
+    setParameterFromUI (ParamIDs::key, (float) key);
+    setParameterFromUI (ParamIDs::scale, (float) scale);
+    if (delta != 0)
+        transposeChords (delta);
+}
+
+void FaseGrooveGuitarProcessor::followKeyParameter()
+{
+    const int key = juce::roundToInt (raw (ParamIDs::key));
+    if (appliedKey.load() < 0)
+        appliedKey = key;
+    else if (key != appliedKey.load())
+        setKey (key);
 }
 
 void FaseGrooveGuitarProcessor::randomizeChords()
@@ -1073,11 +1124,18 @@ void FaseGrooveGuitarProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     for (const auto& e : events)
     {
         const int pos = juce::jlimit (0, numSamples - 1, (int) std::floor ((e.ppq - startPpq) * samplesPerBeat));
+        if (e.isController())
+        {
+            outMidi.addEvent (juce::MidiMessage::controllerEvent (channel, e.note, juce::jlimit (0, 127, e.velocity)), pos);
+            continue;
+        }
+        const bool keyswitch = e.lane == fgg::keyswitchLane;   // for the guitar instrument, not the guide
         if (e.isNoteOn())
         {
             noteChannels[(size_t) e.note] = channel;
             outMidi.addEvent (juce::MidiMessage::noteOn (channel, e.note, (juce::uint8) e.velocity), pos);
-            laneFlash[(size_t) juce::jlimit (0, fgg::numLanes - 1, e.lane)] = (float) e.velocity / 127.0f;
+            if (! keyswitch)
+                laneFlash[(size_t) juce::jlimit (0, fgg::numLanes - 1, e.lane)] = (float) e.velocity / 127.0f;
         }
         else
         {
@@ -1085,7 +1143,8 @@ void FaseGrooveGuitarProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
             outMidi.addEvent (juce::MidiMessage::noteOff (original > 0 ? original : channel, e.note), pos);
             original = 0;
         }
-        guideEvents.push_back ({ pos, e.note, e.isNoteOn() ? (float) e.velocity / 127.0f : 0.0f, e.lane });
+        if (! keyswitch)
+            guideEvents.push_back ({ pos, e.note, e.isNoteOn() ? (float) e.velocity / 127.0f : 0.0f, e.lane });
     }
 
     // Audition timestamps are absolute samples: small host blocks must not collapse a strum.
@@ -1093,8 +1152,14 @@ void FaseGrooveGuitarProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     {
         auditionLane = juce::jlimit (0, fgg::numLanes - 1, request / 128);
         const double ppq = juce::jmax (0.0, uiPpq.load());
-        const auto notes = fgg::laneNotes ((fgg::Lane) auditionLane, chordForBar ((long long) std::floor (ppq / 4.0)),
-                                         (int) std::floor (ppq / fgg::stepLength) % 16, settings.octaves[(size_t) auditionLane]);
+        // (no allocation here: the shapes and the notes in fixed arrays)
+        const auto chord = chordForBar ((long long) std::floor (ppq / 4.0));
+        const auto voicing = fgg::voiceChord (chord, nullptr, settings.roomForBand);
+        fgg::NoteList notes;
+        fgg::laneNotes ((fgg::Lane) auditionLane, chord, voicing, (int) std::floor (ppq / fgg::stepLength) % 16,
+                        settings.octaves[(size_t) auditionLane], notes, settings.roomForBand);
+        if (auditionLane == (int) fgg::Lane::strumUp)
+            std::reverse (notes.begin(), notes.end());   // high to low
         auditionCount = juce::jmin ((int) notes.size(), (int) auditionNotes.size());
         std::copy_n (notes.begin(), auditionCount, auditionNotes.begin());
         auditionChannel = channel;
@@ -1217,10 +1282,24 @@ juce::MidiFile FaseGrooveGuitarProcessor::midiFromEvents (const std::vector<fgg:
         std::array<std::vector<size_t>, 128> open;   // per pitch, the notes still waiting for their off
         const double endTick = beats * ticksPerQuarter;
         auto toTick = [&] (double ppq) { return std::round (juce::jlimit (0.0, beats, ppq) * ticksPerQuarter); };
+        // A track of its own (one lane) sends its own keyswitches, when they are asked for.
+        const bool ownKeyswitches = lane >= 0 && raw (ParamIDs::keyswitches) > 0.5f;
+        int lastArticulation = -1;
         for (const auto& e : clipEvents)
         {
             if (lane >= 0 && e.lane != lane)
                 continue;
+            if (e.isController())
+            {
+                track.addEvent (juce::MidiMessage::controllerEvent (channel, e.note, juce::jlimit (0, 127, e.velocity)), toTick (e.ppq));
+                continue;
+            }
+            if (ownKeyswitches && e.isNoteOn() && e.articulation != lastArticulation)
+            {
+                const int ks = juce::jlimit (0, 39, juce::roundToInt (raw (ParamIDs::keyswitch (juce::jlimit (0, fgg::numArticulations - 1, e.articulation)))));
+                notes.push_back ({ ks, toTick (e.ppq), juce::jmin (endTick, toTick (e.ppq + 0.03)), 100 });
+                lastArticulation = e.articulation;
+            }
             const int pitch = juce::jlimit (0, 127, e.note);
             if (e.isNoteOn())
             {
@@ -1408,7 +1487,7 @@ void FaseGrooveGuitarProcessor::renderGuideAudio (const std::vector<fgg::NoteEve
         {
             const auto& e = clipEvents[next++];
             const int at = juce::jlimit (0, n - 1, (int) std::floor (e.ppq * samplesPerBeat) - start);
-            if (onlyLane >= 0 && e.lane != onlyLane)
+            if ((onlyLane >= 0 && e.lane != onlyLane) || e.isController() || e.lane == fgg::keyswitchLane)
                 continue;
             blockEvents.push_back ({ at, e.note, e.isNoteOn() ? (float) e.velocity / 127.0f : 0.0f, e.lane });
         }
@@ -1653,9 +1732,10 @@ void FaseGrooveGuitarProcessor::updateLink()
                 }
                 if (keyLinked.load() && xml->hasAttribute ("key"))   // the same key (the chords move the shortest way)
                 {
-                    setKey (xml->getIntAttribute ("key"));
-                    if (xml->hasAttribute ("scale"))
-                        setParameterFromUI (ParamIDs::scale, (float) juce::jlimit (0, fgg::numScales - 1, xml->getIntAttribute ("scale")));
+                    if (xml->hasAttribute ("scale"))   // (a relative key keeps the chords where they are)
+                        setKeyAndScale (xml->getIntAttribute ("key"), xml->getIntAttribute ("scale"));
+                    else
+                        setKey (xml->getIntAttribute ("key"));
                 }
                 if (xml->hasAttribute ("swing"))
                     setParameterFromUI (ParamIDs::swing, juce::jlimit (0.0f, 1.5f, (float) xml->getDoubleAttribute ("swing")));
@@ -1880,6 +1960,7 @@ void FaseGrooveGuitarProcessor::applyStateTree (const juce::ValueTree& source)
                 state.appendChild (child, nullptr);
             }
     apvts.replaceState (state);
+    appliedKey = juce::roundToInt (raw (ParamIDs::key));   // the chords were saved in this key
 }
 
 void FaseGrooveGuitarProcessor::getStateInformation (juce::MemoryBlock& destData)
