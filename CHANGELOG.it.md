@@ -4,6 +4,12 @@
 
 Tutte le modifiche importanti di **Fase Groove Guitar**.
 
+## [0.3.2] - 2026-10-19
+
+- Export più sicuri: ogni .mid (e .wav) si scrive prima in un file temporaneo; quello esistente viene sostituito solo quando il nuovo è completo (disco pieno o permessi mancanti lasciano il file vecchio).
+- Spazio riservato per blocchi audio molto grandi (render offline): niente cresce nel thread audio.
+- Accordi da MIDI in ingresso: la stessa nota suonata due volte resta tenuta finché non vengono rilasciate entrambe; All Notes Off le libera tutte.
+
 ## [0.3.1] - 2026-10-19
 
 - **TONALITÀ** accanto a Sequencer (con LINK attivo): stessa tonalità e scala di Fase Groove Piano; gli accordi si spostano per la via più corta. Il titolo del riquadro ora è solo TEMPO.

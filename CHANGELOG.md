@@ -4,6 +4,12 @@
 
 All notable changes to **Fase Groove Guitar**.
 
+## [0.3.2] - 2026-10-19
+
+- Safer exports: every .mid (and .wav) is written to a temporary file first; the one already there is replaced only once the new one is complete (a full disk or no permission keeps the old file).
+- Room reserved for very large audio blocks (offline rendering): nothing grows on the audio thread.
+- MIDI chord input: the same note struck twice stays held until both are released; All Notes Off lets go of all.
+
 ## [0.3.1] - 2026-10-19
 
 - **KEY** beside Sequencer (with LINK on): the same key and scale as Fase Groove Piano; the chords move the shortest way. The panel's title is now just TEMPO.

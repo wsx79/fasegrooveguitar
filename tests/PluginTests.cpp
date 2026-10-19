@@ -455,6 +455,21 @@ namespace
             CHECK (! p.followsHeldChord());
         }
 
+        // The same note struck twice: held until both are released; All Notes Off lets go of all.
+        {
+            juce::MidiBuffer midi;
+            for (int n : { 40, 56, 59, 62, 66 })
+                midi.addEvent (juce::MidiMessage::noteOn (1, n, (juce::uint8) 100), 0);
+            midi.addEvent (juce::MidiMessage::noteOn (1, 40, (juce::uint8) 90), 1);
+            midi.addEvent (juce::MidiMessage::noteOff (1, 40), 2);
+            p.processBlock (buffer, midi);
+            CHECK (p.followsHeldChord() && ChordPanel::nameOf (p.heldChord()) == "E9");   // E still held once
+            juce::MidiBuffer off;
+            off.addEvent (juce::MidiMessage::allNotesOff (1), 0);
+            p.processBlock (buffer, off);
+            CHECK (! p.followsHeldChord());
+        }
+
         // MIDI IN off: the notes pass through.
         p.setParameterFromUI (ParamIDs::chordInput, 0.0f);
         head.playing = false;

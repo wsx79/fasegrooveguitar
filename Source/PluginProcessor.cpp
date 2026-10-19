@@ -243,15 +243,16 @@ bool FaseGrooveGuitarProcessor::isBusesLayoutSupported (const BusesLayout& layou
     return out == juce::AudioChannelSet::mono() || out == juce::AudioChannelSet::stereo();
 }
 
-void FaseGrooveGuitarProcessor::prepareToPlay (double sampleRate, int)
+void FaseGrooveGuitarProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     guitar.prepare (sampleRate);
-    guideEvents.reserve (1024);
+    // Room for the largest blocks (offline rendering too): no growing on the audio thread.
+    guideEvents.reserve ((size_t) juce::jmax (8192, samplesPerBlock / 2));
     reverbFx.setSampleRate (sampleRate);
     reverbFx.reset();
     outputGain.reset (sampleRate, 0.05);
     outputGain.setCurrentAndTargetValue (juce::Decibels::decibelsToGain (raw (ParamIDs::volume)));
-    events.reserve (1024);
+    events.reserve ((size_t) juce::jmax (8192, samplesPerBlock / 2));
 }
 
 juce::AudioProcessorEditor* FaseGrooveGuitarProcessor::createEditor()
@@ -948,13 +949,19 @@ void FaseGrooveGuitarProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
 
         if (m.isNoteOnOrOff())
         {
-            heldNotes[(size_t) m.getNoteNumber()] = m.isNoteOn();
+            // Counted per pitch: the same note struck twice stays held until both are released.
+            auto& count = heldCount[(size_t) m.getNoteNumber()];
+            count = m.isNoteOn() ? (std::uint8_t) juce::jmin (16, count + 1) : (std::uint8_t) juce::jmax (0, count - 1);
+            heldNotes[(size_t) m.getNoteNumber()] = count > 0;
             if (chordInput)
                 continue;
             guideEvents.push_back ({ meta.samplePosition, m.getNoteNumber(), m.isNoteOn() ? m.getFloatVelocity() : 0.0f, (int) fgg::Lane::strumDown });
         }
         else if (m.isAllNotesOff() || m.isAllSoundOff())
+        {
             heldNotes.fill (false);
+            heldCount.fill (0);
+        }
 
         outMidi.addEvent (m, meta.samplePosition);
     }
@@ -1282,6 +1289,20 @@ juce::MidiFile FaseGrooveGuitarProcessor::midiFromEvents (const std::vector<fgg:
     return file;
 }
 
+bool FaseGrooveGuitarProcessor::writeMidiFileSafely (const juce::MidiFile& midi, const juce::File& target)
+{
+    juce::TemporaryFile temp (target);
+    {
+        juce::FileOutputStream out (temp.getFile());
+        if (! out.openedOk() || ! midi.writeTo (out))
+            return false;
+        out.flush();
+        if (out.getStatus().failed())
+            return false;
+    }
+    return temp.overwriteTargetFileWithTemporary();
+}
+
 juce::MidiFile FaseGrooveGuitarProcessor::createMidiClip (int bars, ClipPart part) const
 {
     const auto settings = currentSettings();
@@ -1329,14 +1350,7 @@ juce::File FaseGrooveGuitarProcessor::writeMidiClip (int bars, ClipPart part) co
         folder = juce::File::getSpecialLocation (juce::File::tempDirectory);
 
     auto file = folder.getChildFile (clipFileName (bars, part));
-    file.deleteFile();
-
-    juce::FileOutputStream stream (file);
-    if (! stream.openedOk())
-        return {};
-
-    createMidiClip (bars, part).writeTo (stream);
-    return file;
+    return writeMidiFileSafely (createMidiClip (bars, part), file) ? file : juce::File();
 }
 
 //==============================================================================
@@ -1410,17 +1424,20 @@ juce::Array<juce::File> FaseGrooveGuitarProcessor::writeAudio (AudioExport mode,
 
     auto write = [&] (const juce::File& file, const juce::AudioBuffer<float>& audio)
     {
-        file.deleteFile();
+        // Whole or not at all: a temporary file first, the one already there replaced only
+        // once the new one is complete.
+        juce::TemporaryFile temp (file);
         juce::WavAudioFormat wav;
-        std::unique_ptr<juce::OutputStream> stream (file.createOutputStream());
+        std::unique_ptr<juce::OutputStream> stream (temp.getFile().createOutputStream());
         if (stream == nullptr)
             return;
         const auto options = juce::AudioFormatWriterOptions().withSampleRate (sampleRate).withNumChannels (2).withBitsPerSample (24);
+        bool ok = false;
         if (auto writer = wav.createWriterFor (stream, options))
-        {
-            writer->writeFromAudioSampleBuffer (audio, 0, audio.getNumSamples());
+            ok = writer->writeFromAudioSampleBuffer (audio, 0, audio.getNumSamples()) && writer->flush();
+        // (the writer is gone here: the file is closed)
+        if (ok && temp.overwriteTargetFileWithTemporary())
             written.add (file);
-        }
     };
 
     if (mode == AudioExport::song)
@@ -1937,13 +1954,7 @@ juce::File FaseGrooveGuitarProcessor::writeSongSectionClip (int partIndex, ClipP
                     + juce::String (fgg::GrooveEngine::basePattern (currentSettings()).name)
                     + " " + juce::String (juce::roundToInt (exportBpm())) + "bpm" + (part == ClipPart::tracks ? " (tracks)" : "");
     auto file = folder.getChildFile (juce::File::createLegalFileName (name.replace ("'", "")) + ".mid");
-    file.deleteFile();
-
-    juce::FileOutputStream stream (file);
-    if (! stream.openedOk())
-        return {};
-    midiFromEvents (sectionEvents, section.bars * 4.0, &markers, part, name).writeTo (stream);
-    return file;
+    return writeMidiFileSafely (midiFromEvents (sectionEvents, section.bars * 4.0, &markers, part, name), file) ? file : juce::File();
 }
 
 int FaseGrooveGuitarProcessor::saveSongSections (const juce::File& folder, ClipPart part) const
@@ -1955,8 +1966,8 @@ int FaseGrooveGuitarProcessor::saveSongSections (const juce::File& folder, ClipP
         if (const auto file = writeSongSectionClip (i, part); file.existsAsFile())
         {
             const auto target = folder.getChildFile (juce::String (i + 1).paddedLeft ('0', 2) + " " + file.getFileName());
-            target.deleteFile();
-            if (file.copyFileTo (target))
+            juce::TemporaryFile temp (target);   // the one already there stays until the copy is whole
+            if (file.copyFileTo (temp.getFile()) && temp.overwriteTargetFileWithTemporary())
                 ++written;
         }
     return written;

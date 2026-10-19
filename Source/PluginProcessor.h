@@ -236,6 +236,9 @@ public:
 
     /** Renders the groove as a standard MIDI file. bars == 0 means "one full loop". */
     juce::MidiFile createMidiClip (int bars, ClipPart part) const;
+    /** Writes a .mid whole or not at all: a temporary file first, the one already there replaced
+        only once the new one is complete (a full disk or no permission keeps the old clip). */
+    static bool writeMidiFileSafely (const juce::MidiFile&, const juce::File& target);
     /** Writes the clip into Documents/Fase Groove Guitar/MIDI clips and returns the file. */
     juce::File writeMidiClip (int bars, ClipPart part) const;
     juce::String clipFileName (int bars, ClipPart part) const;
@@ -327,6 +330,7 @@ private:
 
     // The notes held on the MIDI input (audio thread), and the chord they make (for the UI too).
     std::array<bool, 128> heldNotes {};
+    std::array<std::uint8_t, 128> heldCount {};   // note-ons not yet released, per pitch
     std::atomic<int> liveRoot { 0 }, liveMask { 0 };
 
     std::atomic<bool> linkOn { false };
