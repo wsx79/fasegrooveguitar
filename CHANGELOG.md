@@ -4,6 +4,15 @@
 
 All notable changes to **Fase Groove Guitar**.
 
+## [0.3.4] - 2026-10-19
+
+- Note-offs keep the channel used by their note-on, including a channel change while playing.
+- Old presets restore defaults for missing parameters instead of inheriting the previous preset.
+- MIDI Start and Song Position Pointer replace the old clock position in the current block.
+- Equal-time event ordering no longer needs the temporary allocation used by stable_sort.
+- Empty audio blocks are handled without invalid sample positions.
+- Slow rakes retain all delayed strings with small audio blocks and high tempos. Manual auditions preserve the strum across blocks; All Notes Off also stops guide voices.
+
 ## [0.3.3] - 2026-10-19
 
 - KEY shows the key itself ("KEY  A Dorian"); the groove's display is a little narrower to make room. KEY can be switched on before LINK: it works once linked.

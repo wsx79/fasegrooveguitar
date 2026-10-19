@@ -916,6 +916,7 @@ void FaseGrooveGuitarProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     juce::ScopedNoDenormals noDenormals;
 
     const int numSamples = buffer.getNumSamples();
+    if (numSamples == 0) return;
     const double sampleRate = getSampleRate() > 0.0 ? getSampleRate() : 44100.0;
     buffer.clear();
 
@@ -927,7 +928,7 @@ void FaseGrooveGuitarProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     //      (with Chords from MIDI in), otherwise they pass through (and play the guide guitar) ----
     outMidi.clear();
     guideEvents.clear();
-    const double clockPpqAtStart = clockPpq;
+    double clockPpqAtStart = clockPpq;
     for (const auto meta : midi)
     {
         const auto m = meta.getMessage();
@@ -942,10 +943,10 @@ void FaseGrooveGuitarProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
                 clockPpq += 1.0 / 24.0;
             continue;
         }
-        if (m.isMidiStart())           { clockRunning = true; clockPpq = 0.0; continue; }
-        if (m.isMidiContinue())        { clockRunning = true; continue; }
+        if (m.isMidiStart())           { clockRunning = true; clockPpq = clockPpqAtStart = 0.0; continue; }
+        if (m.isMidiContinue())        { clockRunning = true; clockPpqAtStart = clockPpq; continue; }
         if (m.isMidiStop())            { clockRunning = false; continue; }
-        if (m.isSongPositionPointer()) { clockPpq = m.getSongPositionPointerMidiBeat() / 4.0; continue; }
+        if (m.isSongPositionPointer()) { clockPpq = clockPpqAtStart = m.getSongPositionPointerMidiBeat() / 4.0; continue; }
 
         if (m.isNoteOnOrOff())
         {
@@ -961,6 +962,7 @@ void FaseGrooveGuitarProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
         {
             heldNotes.fill (false);
             heldCount.fill (0);
+            guideEvents.push_back ({ meta.samplePosition, -1, 0.0f, 0 });
         }
 
         outMidi.addEvent (m, meta.samplePosition);
@@ -1001,6 +1003,7 @@ void FaseGrooveGuitarProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     hostBpm = juce::jlimit (20.0, 400.0, dawBpm);
     const double bpm = tempoSynced ? hostBpm.load() : juce::jlimit (20.0, 400.0, (double) raw (ParamIDs::tempo));
     lastBpm = bpm;
+    settings.tempo = bpm;
     const double samplesPerBeat = sampleRate * 60.0 / bpm;
     const double blockBeats = numSamples / samplesPerBeat;
 
@@ -1072,45 +1075,54 @@ void FaseGrooveGuitarProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
         const int pos = juce::jlimit (0, numSamples - 1, (int) std::floor ((e.ppq - startPpq) * samplesPerBeat));
         if (e.isNoteOn())
         {
+            noteChannels[(size_t) e.note] = channel;
             outMidi.addEvent (juce::MidiMessage::noteOn (channel, e.note, (juce::uint8) e.velocity), pos);
             laneFlash[(size_t) juce::jlimit (0, fgg::numLanes - 1, e.lane)] = (float) e.velocity / 127.0f;
         }
         else
-            outMidi.addEvent (juce::MidiMessage::noteOff (channel, e.note), pos);
+        {
+            auto& original = noteChannels[(size_t) e.note];
+            outMidi.addEvent (juce::MidiMessage::noteOff (original > 0 ? original : channel, e.note), pos);
+            original = 0;
+        }
         guideEvents.push_back ({ pos, e.note, e.isNoteOn() ? (float) e.velocity / 127.0f : 0.0f, e.lane });
     }
 
-    // A lane played by hand (a click on its pad): its notes over the chord of the bar, strummed,
-    // stopped half a second later.
-    if (auditionCount > 0 && samplesProcessed + numSamples >= auditionEnd)
-    {
-        const int pos = juce::jlimit (0, numSamples - 1, (int) (auditionEnd - samplesProcessed));
-        for (int i = 0; i < auditionCount; ++i)
-        {
-            outMidi.addEvent (juce::MidiMessage::noteOff (channel, auditionNotes[(size_t) i]), pos);
-            guideEvents.push_back ({ pos, auditionNotes[(size_t) i], 0.0f, auditionLane });
-        }
-        auditionCount = 0;
-    }
+    // Audition timestamps are absolute samples: small host blocks must not collapse a strum.
     if (const int request = auditionRequest.exchange (-1); request >= 0 && auditionCount == 0)
     {
-        const int lane = juce::jlimit (0, fgg::numLanes - 1, request / 128);
+        auditionLane = juce::jlimit (0, fgg::numLanes - 1, request / 128);
         const double ppq = juce::jmax (0.0, uiPpq.load());
-        const auto notes = fgg::laneNotes ((fgg::Lane) lane, chordForBar ((long long) std::floor (ppq / 4.0)),
-                                           (int) std::floor (ppq / fgg::stepLength) % 16, settings.octaves[(size_t) lane]);
-        const int gap = juce::roundToInt (settings.strumMs * 0.001 * sampleRate);
-        for (size_t i = 0; i < notes.size() && i < auditionNotes.size(); ++i)
-        {
-            const int pos = juce::jlimit (0, numSamples - 1, (int) i * gap);
-            outMidi.addEvent (juce::MidiMessage::noteOn (channel, notes[i], (juce::uint8) (request % 128)), pos);
-            guideEvents.push_back ({ pos, notes[i], (float) (request % 128) / 127.0f, lane });
-            auditionNotes[i] = notes[i];
-            auditionCount = (int) i + 1;
-        }
-        auditionLane = lane;
-        auditionEnd = samplesProcessed + (juce::int64) (sampleRate * 0.5);
-        laneFlash[(size_t) lane] = (float) (request % 128) / 127.0f;
+        const auto notes = fgg::laneNotes ((fgg::Lane) auditionLane, chordForBar ((long long) std::floor (ppq / 4.0)),
+                                         (int) std::floor (ppq / fgg::stepLength) % 16, settings.octaves[(size_t) auditionLane]);
+        auditionCount = juce::jmin ((int) notes.size(), (int) auditionNotes.size());
+        std::copy_n (notes.begin(), auditionCount, auditionNotes.begin());
+        auditionChannel = channel;
+        auditionVelocity = request % 128;
+        auditionStart = samplesProcessed;
+        auditionGap = juce::roundToInt (settings.strumMs * 0.001 * sampleRate);
+        auditionDuration = (juce::int64) (sampleRate * 0.5);
+        laneFlash[(size_t) auditionLane] = (float) auditionVelocity / 127.0f;
     }
+    for (int i = 0; i < auditionCount; ++i)
+    {
+        const auto on = auditionStart + i * auditionGap;
+        const auto off = on + auditionDuration;
+        if (on >= samplesProcessed && on < samplesProcessed + numSamples)
+        {
+            const int at = (int) (on - samplesProcessed);
+            outMidi.addEvent (juce::MidiMessage::noteOn (auditionChannel, auditionNotes[(size_t) i], (juce::uint8) auditionVelocity), at);
+            guideEvents.push_back ({ at, auditionNotes[(size_t) i], (float) auditionVelocity / 127.0f, auditionLane });
+        }
+        if (off >= samplesProcessed && off < samplesProcessed + numSamples)
+        {
+            const int at = (int) (off - samplesProcessed);
+            outMidi.addEvent (juce::MidiMessage::noteOff (auditionChannel, auditionNotes[(size_t) i]), at);
+            guideEvents.push_back ({ at, auditionNotes[(size_t) i], 0.0f, auditionLane });
+        }
+    }
+    if (auditionCount > 0 && auditionStart + (auditionCount - 1) * auditionGap + auditionDuration < samplesProcessed + numSamples)
+        auditionCount = 0;
 
     // ---- The guide guitar ----
     const bool soundOn = raw (ParamIDs::sound) > 0.5f;
@@ -1828,6 +1840,8 @@ void FaseGrooveGuitarProcessor::applyStateTree (const juce::ValueTree& source)
         setTemplate (groove.getProperty ("name").toString(), timing, level);
         templateActive = templateName.isNotEmpty() && (bool) groove.getProperty ("active", true);
     }
+    leadMode = false;
+    keyLinked = false;
     if (const auto link = state.getChildWithName ("Link"); link.isValid())
     {
         leadMode = (bool) link.getProperty ("lead", false);
@@ -1835,6 +1849,8 @@ void FaseGrooveGuitarProcessor::applyStateTree (const juce::ValueTree& source)
         setLinked ((bool) link.getProperty ("on", false));
         writeLead();
     }
+    else
+        setLinked (false);
     const auto locks = grid.getProperty ("locks").toString();
     for (int i = 0; i < fgg::numSegments; ++i)
         segmentLocked[(size_t) i] = locks.substring (i, i + 1) == "1";
@@ -1852,6 +1868,17 @@ void FaseGrooveGuitarProcessor::applyStateTree (const juce::ValueTree& source)
     for (const auto* name : { "Grid", "Song", "Fill", "Template", "Link" })
         state.removeChild (state.getChildWithName (name), nullptr);
     state.removeProperty ("editorScale", nullptr);
+    // APVTS retains the current value when a parameter child is absent. Old presets
+    // must instead restore defaults for parameters added after that preset was saved.
+    for (auto* parameter : getParameters())
+        if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (parameter))
+            if (! state.getChildWithProperty ("id", ranged->paramID).isValid())
+            {
+                juce::ValueTree child ("PARAM");
+                child.setProperty ("id", ranged->paramID, nullptr);
+                child.setProperty ("value", ranged->convertFrom0to1 (ranged->getDefaultValue()), nullptr);
+                state.appendChild (child, nullptr);
+            }
     apvts.replaceState (state);
 }
 

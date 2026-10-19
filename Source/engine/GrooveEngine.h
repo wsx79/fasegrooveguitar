@@ -140,7 +140,7 @@ public:
     static ChordTones chordAt (const GuitarSettings& s, long long bar) noexcept;
 
 private:
-    struct PendingOn { double ppq; int note; int velocity; double duration; int lane; bool choke = false; };
+    struct PendingOn { double ppq; int note; int velocity; double duration; int lane; bool choke = false; std::size_t order = 0; };
 
     const GuitarPattern& patternFor (const GuitarSettings& s);
     void collectStep (long long step, const GuitarSettings& s, const GuitarPattern& pattern, const GuitarPattern& variation);
