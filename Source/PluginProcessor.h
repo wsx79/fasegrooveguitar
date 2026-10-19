@@ -191,6 +191,12 @@ public:
     /** Writes the genre and swing for the others, or takes theirs (message thread, a few times a second). */
     void updateLink();
 
+    /** LEAD (only while linked): the guitar plays the main riff and a linked Fase Groove Piano
+        only fills in a chord now and then instead of its whole pattern. Off: nothing changes. */
+    void setLeadMode (bool on);
+    bool isLeadMode() const noexcept { return leadMode.load(); }
+    static juce::File leadFile();   // beside the link file: who leads, refreshed while it does
+
     /** Velocity shapes for one lane (what makes a strum groove): the levels of its hits are set by hand. */
     static juce::StringArray velocityShapeNames();
     void applyVelocityShape (int lane, int shape);
@@ -346,6 +352,9 @@ private:
         FaseGrooveGuitarProcessor& owner;
     };
     LinkTimer linkTimer { *this };
+    std::atomic<bool> leadMode { false };
+    double leadWrittenAt = 0.0;
+    void writeLead();
     int baseStep (int displayedStep) const;   // the step of the user pattern shown at a displayed step
     /** Makes the groove showing the user pattern (as written: before the A-D order); true if it already was. */
     bool makeUserPattern();

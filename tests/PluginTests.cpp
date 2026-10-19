@@ -5,6 +5,7 @@
 // chords, styles, exported MIDI and audio files, DAW transport, the MIDI chord input and the
 // guide guitar.
 
+#include <array>
 #include "../Source/PluginProcessor.h"
 #include "../Source/Localisation.h"
 #include "../Source/PluginEditor.h"
@@ -54,6 +55,75 @@ namespace
     {
         const auto t = fgg::tonesOf (chord);
         return (t.mask >> (unsigned) (((note - t.root) % 12 + 12) % 12)) & 1u;
+    }
+
+    /** Every note of a file clean, for any instrument: each note-on closed by its note-off on
+        the same track, later than it, no pitch struck again while still sounding, nothing left open. */
+    bool notesAreClean (const juce::MidiFile& file)
+    {
+        for (int t = 0; t < file.getNumTracks(); ++t)
+        {
+            std::array<double, 128> openAt;
+            openAt.fill (-1.0);
+            for (const auto* e : *file.getTrack (t))
+            {
+                const auto& m = e->message;
+                if (m.isNoteOn())
+                {
+                    if (openAt[(size_t) m.getNoteNumber()] >= 0.0)
+                    {
+                        std::printf ("  note %d struck again at %.0f (open since %.0f)\n", m.getNoteNumber(), m.getTimeStamp(), openAt[(size_t) m.getNoteNumber()]);
+                        return false;   // struck again while sounding
+                    }
+                    openAt[(size_t) m.getNoteNumber()] = m.getTimeStamp();
+                }
+                else if (m.isNoteOff())
+                {
+                    const double start = openAt[(size_t) m.getNoteNumber()];
+                    if (start < 0.0 || m.getTimeStamp() <= start)
+                    {
+                        std::printf ("  note %d off at %.0f (open since %.0f)\n", m.getNoteNumber(), m.getTimeStamp(), start);
+                        for (const auto* x : *file.getTrack (t))
+                            if (x->message.isNoteOnOrOff() && x->message.getNoteNumber() == m.getNoteNumber() && std::abs (x->message.getTimeStamp() - m.getTimeStamp()) < 400)
+                                std::printf ("    %s %.0f\n", x->message.isNoteOn() ? "on " : "off", x->message.getTimeStamp());
+                        return false;
+                    }   // an off with nothing open, or a zero-length note
+                    openAt[(size_t) m.getNoteNumber()] = -1.0;
+                }
+            }
+            for (double o : openAt)
+                if (o >= 0.0)
+                    return false;   // left hanging at the end
+        }
+        return true;
+    }
+
+    //==============================================================================
+    /** The family's compatibility checks on every preset groove: clean MIDI, one track and the
+        tracks per lane with the same notes, the same seed the same clip, the dice another one. */
+    void testGrooveCompatibility()
+    {
+        FaseGrooveGuitarProcessor p;
+        p.setParameterFromUI (ParamIDs::tempoSync, 0.0f);
+        for (size_t i = 0; i < fgg::guitarPatterns().size(); ++i)
+        {
+            p.selectGroove ((int) i);
+            const auto one = p.createMidiClip (4, FaseGrooveGuitarProcessor::ClipPart::all);
+            const auto tracks = p.createMidiClip (4, FaseGrooveGuitarProcessor::ClipPart::tracks);
+            CHECK (notesAreClean (one));
+            CHECK (notesAreClean (tracks));
+            CHECK (countNoteOns (one) > 0);
+            CHECK (countNoteOns (tracks) >= countNoteOns (one));   // (two lanes on one note at once: one note on a single track)
+            // The same settings: the same clip.
+            juce::MemoryOutputStream a, b;
+            one.writeTo (a);
+            p.createMidiClip (4, FaseGrooveGuitarProcessor::ClipPart::all).writeTo (b);
+            CHECK (a.getMemoryBlock() == b.getMemoryBlock());
+        }
+        // The whole song too, with the clip's end on a section boundary.
+        const auto song = p.createMidiClip (FaseGrooveGuitarProcessor::songArrangement, FaseGrooveGuitarProcessor::ClipPart::all);
+        CHECK (notesAreClean (song));
+        CHECK (notesAreClean (p.createMidiClip (FaseGrooveGuitarProcessor::songArrangement, FaseGrooveGuitarProcessor::ClipPart::tracks)));
     }
 
     //==============================================================================
@@ -217,7 +287,7 @@ namespace
         // One track per lane.
         const auto tracks = p.createMidiClip (4, FaseGrooveGuitarProcessor::ClipPart::tracks);
         CHECK (tracks.getNumTracks() >= 3);
-        CHECK (countNoteOns (tracks) == countNoteOns (clip));
+        CHECK (countNoteOns (tracks) >= countNoteOns (clip));
 
         // Another channel; a muted lane is left out.
         p.setParameterFromUI (ParamIDs::midiChannel, 5.0f);
@@ -645,6 +715,31 @@ namespace
         click ("OPTIONS");
         save ("4-options");
     }
+    void testLinkRoles()
+    {
+        using P = FaseGrooveGuitarProcessor;
+        // LEAD: written beside the link file only while linked, cleared when switched off.
+        const auto lead = P::leadFile();
+        const bool existed = lead.existsAsFile();
+        const auto backup = lead.loadFileAsString();
+        lead.deleteFile();
+        {
+            P p;
+            p.setLeadMode (true);
+            CHECK (! lead.existsAsFile());          // not linked: nothing changes
+            p.setLinked (true);
+            CHECK (lead.existsAsFile());
+            if (auto xml = juce::parseXML (lead))
+                CHECK (xml->getBoolAttribute ("lead"));
+            p.setLeadMode (false);
+            CHECK (! lead.existsAsFile());
+            p.setLeadMode (true);
+            p.setLinked (false);
+            CHECK (! lead.existsAsFile());
+        }
+        if (existed) lead.replaceWithText (backup);
+    }
+
 }
 
 int main (int argc, char** argv)
@@ -663,6 +758,7 @@ int main (int argc, char** argv)
     testGridEditing();
     testChordsAndStyles();
     testMidiExport();
+    testGrooveCompatibility();
     testAudioExport();
     testTransport();
     testChordInput();
@@ -670,6 +766,7 @@ int main (int argc, char** argv)
     testGuideGuitar();
     testUpdater();
     testTranslations();
+    testLinkRoles();
     testEditor();
 
     if (failures == 0)

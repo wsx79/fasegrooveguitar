@@ -61,6 +61,9 @@ struct ChordTones
 ChordTones tonesOf (const Chord&) noexcept;
 /** The chord a set of held notes makes: the lowest note is the root. mask == 0: nothing held. */
 ChordTones tonesOfNotes (const std::vector<int>& notes) noexcept;
+/** The same from the 128 MIDI notes, true where held: no allocation (for the audio thread).
+    `count` gets how many notes are held. */
+ChordTones tonesOfHeld (const std::array<bool, 128>& held, int& count) noexcept;
 
 /** The MIDI notes a lane plays over a chord, lowest first, as a guitarist voices them in
     standard tuning (between E2 = 40 and about A5): a down strum the full six-string chord, a stab

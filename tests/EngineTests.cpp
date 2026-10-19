@@ -150,6 +150,14 @@ static void testLanesAndChords()
     const auto held = tonesOfNotes ({ 57, 60, 64, 67 });   // A C E G
     CHECK (held.root == 9 && held == tonesOf ({ 9, (int) ChordType::m7 }));
     CHECK (tonesOfNotes ({}).mask == 0);
+    {
+        std::array<bool, 128> keys {};
+        keys[57] = keys[60] = keys[64] = keys[67] = true;
+        int count = 0;
+        CHECK (tonesOfHeld (keys, count) == tonesOfNotes ({ 57, 60, 64, 67 }) && count == 4);
+        keys.fill (false);
+        CHECK (tonesOfHeld (keys, count).mask == 0 && count == 0);
+    }
 }
 
 static void testVoicings()

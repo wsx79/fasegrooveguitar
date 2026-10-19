@@ -3365,6 +3365,11 @@ FaseGrooveGuitarEditor::FaseGrooveGuitarEditor (FaseGrooveGuitarProcessor& p)
     linkButton.setColour (juce::TextButton::buttonOnColourId, Palette::accent2.darker (0.3f));
     Localisation::bindTip (linkButton, "Link with Fase Groove Piano and Drums: the same genre, swing, tempo and play button in all of them, on the same beat (change it in any one)");
     linkButton.onClick = [this] { processor.setLinked (linkButton.getToggleState()); };
+    leadButton.setClickingTogglesState (true);
+    leadButton.setColour (juce::TextButton::buttonOnColourId, Palette::accent.darker (0.2f));
+    Localisation::bindTip (leadButton, "Guitar leads (with LINK on): the guitar plays the main riff and Fase Groove Piano only fills in a chord now and then");
+    leadButton.onClick = [this] { processor.setLeadMode (leadButton.getToggleState()); };
+    show (leadButton);
     for (juce::Component* c : std::initializer_list<juce::Component*> { &grooveButton, &prevGroove, &nextGroove, &genreCombo, &newBeatButton, &densitySlider,
                                                                         &partLengthCombo, &linkButton })
         show (*c);
@@ -3637,7 +3642,7 @@ FaseGrooveGuitarEditor::FaseGrooveGuitarEditor (FaseGrooveGuitarProcessor& p)
              { &gridTab, "STEP GRID" }, { &velocityTab, "VELOCITY" }, { &mixerTab, "MIXER" }, { &clearButton, "CLEAR" },
              { &myGroovesButton, "MY GROOVES" }, { &saveButton, "SAVE .MID..." }, { &songButton, "FULL SONG..." },
              { &fillTab, "FILL" }, { &templateButton, "TEMPLATE..." }, { &timingButton, "TIMING..." }, { &wavButton, "SAVE .WAV..." },
-             { &linkButton, "LINK" } })
+             { &linkButton, "LINK" }, { &leadButton, "LEAD" } })
         Localisation::bindText (*b, english);
     Localisation::bind (content, [this] { content.repaint(); options.refreshText(); translateHostWindow(); });
 
@@ -3892,6 +3897,7 @@ void FaseGrooveGuitarEditor::layout()
     tempoArea = { 520, 18, 330, 68 };
     sequencerToggle.setBounds (734, 24, 104, 18);
     linkButton.setBounds (664, 24, 64, 18);
+    leadButton.setBounds (214, 237, 88, 20);   // in the guitar part's heading, easy to see
     rewindButton.setBounds (532, 48, 34, 30);
     playButton.setBounds (566, 48, 40, 30);
     stopButton.setBounds (606, 48, 34, 30);
@@ -4225,6 +4231,9 @@ void FaseGrooveGuitarEditor::timerCallback()
             grid.refresh();
     }
     linkButton.setToggleState (processor.isLinked(), juce::dontSendNotification);
+    leadButton.setToggleState (processor.isLeadMode(), juce::dontSendNotification);
+    leadButton.setEnabled (processor.isLinked());   // it works only with LINK on
+    leadButton.setAlpha (processor.isLinked() ? 1.0f : 0.4f);
     templateButton.setToggleState (processor.hasGrooveTemplate(), juce::dontSendNotification);
     mainTemplate.setToggleState (processor.hasGrooveTemplate(), juce::dontSendNotification);
     mainTemplate.setColour (juce::TextButton::buttonOnColourId, Palette::accent.darker (0.35f));

@@ -104,6 +104,26 @@ ChordTones tonesOfNotes (const std::vector<int>& notes) noexcept
     return t;
 }
 
+ChordTones tonesOfHeld (const std::array<bool, 128>& held, int& count) noexcept
+{
+    ChordTones t { 0, 0 };
+    count = 0;
+    int lowest = -1;
+    for (int n = 0; n < 128; ++n)
+    {
+        if (! held[(size_t) n])
+            continue;
+        if (lowest < 0)
+        {
+            lowest = n;
+            t.root = mod12 (n);
+        }
+        t.mask |= 1u << (unsigned) mod12 (n - lowest);
+        ++count;
+    }
+    return t;
+}
+
 //==============================================================================
 namespace
 {

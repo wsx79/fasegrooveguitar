@@ -245,6 +245,8 @@
         { "Interface size", "Dimensione interfaccia", "Tamaño de la interfaz", "Taille de l'interface", "Größe der Oberfläche", "Tamanho da interface" },
         { "SETTINGS", "IMPOSTAZIONI", "AJUSTES", "RÉGLAGES", "EINSTELLUNGEN", "AJUSTES" },
         { "ABOUT", "INFO", "ACERCA DE", "À PROPOS", "ÜBER", "SOBRE" },
+        { "LEAD", "SOLISTA", "SOLISTA", "SOLISTE", "LEAD", "SOLISTA" },
+        { "Guitar leads (with LINK on): the guitar plays the main riff and Fase Groove Piano only fills in a chord now and then", "Chitarra solista (con LINK attivo): la chitarra suona il riff principale e Fase Groove Piano aggiunge solo qualche accordo di completamento ogni tanto", "Guitarra solista (con LINK activo): la guitarra toca el riff principal y Fase Groove Piano solo añade un acorde de vez en cuando", "Guitare soliste (avec LINK) : la guitare joue le riff principal et Fase Groove Piano ajoute seulement un accord de temps en temps", "Gitarre führt (mit LINK): die Gitarre spielt das Hauptriff, Fase Groove Piano ergänzt nur ab und zu einen Akkord", "Guitarra solista (com LINK ativo): a guitarra toca o riff principal e o Fase Groove Piano só completa com um acorde de vez em quando" },
         { "DRAG MIDI TO DAW", "TRASCINA MIDI NELLA DAW", "ARRASTRA EL MIDI A LA DAW", "GLISSER LE MIDI DANS LA DAW", "MIDI IN DIE DAW ZIEHEN", "ARRASTE O MIDI PARA A DAW" },
         { "Drop the clip on a track", "Rilascia la clip su una traccia", "Suelta el clip en una pista", "Déposez le clip sur une piste", "Clip auf eine Spur ziehen", "Solte o clipe numa faixa" },
         { "DONATE: Ko-fi", "DONA: Ko-fi", "DONAR: Ko-fi", "DON : Ko-fi", "SPENDEN: Ko-fi", "DOAR: Ko-fi" },

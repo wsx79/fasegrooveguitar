@@ -233,6 +233,8 @@ FaseGrooveGuitarProcessor::FaseGrooveGuitarProcessor()
 FaseGrooveGuitarProcessor::~FaseGrooveGuitarProcessor()
 {
     linkTimer.stopTimer();
+    leadMode = false;   // a linked piano plays its whole pattern again
+    writeLead();
 }
 
 bool FaseGrooveGuitarProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -957,14 +959,11 @@ void FaseGrooveGuitarProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
         outMidi.addEvent (m, meta.samplePosition);
     }
     {
-        std::vector<int> held;
-        for (int n = 0; n < 128; ++n)
-            if (heldNotes[(size_t) n])
-                held.push_back (n);
-        const auto chord = fgg::tonesOfNotes (held);
+        int count = 0;   // (no vector here: nothing allocated on the audio thread)
+        const auto chord = fgg::tonesOfHeld (heldNotes, count);
         // A single note is not a chord: it plays as the root of a power chord (root and 5th).
         liveRoot = chord.root;
-        liveMask = held.size() == 1 ? 0x81 : (int) chord.mask;
+        liveMask = count == 1 ? 0x81 : (int) chord.mask;
     }
     auto settings = currentSettings();
 
@@ -1190,54 +1189,65 @@ juce::MidiFile FaseGrooveGuitarProcessor::midiFromEvents (const std::vector<fgg:
 
     auto notesOf = [&] (juce::MidiMessageSequence& track, int lane)
     {
-        // Clean notes for any instrument: at the same tick the note-offs come first, a note
-        // struck again while still sounding is ended first, a note-off with nothing sounding is
-        // dropped, and every note lasts at least a 64th (no zero-length notes the DAW skips).
-        std::vector<const fgg::NoteEvent*> sorted;
-        for (const auto& e : clipEvents)
-            if (lane < 0 || e.lane == lane)
-                sorted.push_back (&e);
-        std::stable_sort (sorted.begin(), sorted.end(), [] (const fgg::NoteEvent* a, const fgg::NoteEvent* b)
-        {
-            if (a->ppq != b->ppq)
-                return a->ppq < b->ppq;
-            return ! a->isNoteOn() && b->isNoteOn();
-        });
-        std::array<int, 128> sounding {};       // how many layers hold each pitch
-        std::array<double, 128> startTick {};
-        const double minLength = ticksPerQuarter / 16.0;
+        // Clean notes for any instrument: each note-on paired with its note-off, then per pitch
+        // a note ends where the next one of the same pitch starts (a string struck again), two
+        // at the same moment become one, every note lasts at least a 64th when it has room, and
+        // at the same tick the note-offs are written before the note-ons.
+        struct Note { int pitch; double start, end; int velocity; };
+        std::vector<Note> notes;
+        std::array<std::vector<size_t>, 128> open;   // per pitch, the notes still waiting for their off
         const double endTick = beats * ticksPerQuarter;
-        for (const auto* e : sorted)
+        auto toTick = [&] (double ppq) { return std::round (juce::jlimit (0.0, beats, ppq) * ticksPerQuarter); };
+        for (const auto& e : clipEvents)
         {
-            const int note = juce::jlimit (0, 127, e->note);
-            const double tick = std::round (juce::jlimit (0.0, beats, e->ppq) * ticksPerQuarter);
-            if (e->isNoteOn())
+            if (lane >= 0 && e.lane != lane)
+                continue;
+            const int pitch = juce::jlimit (0, 127, e.note);
+            if (e.isNoteOn())
             {
-                if (sounding[(size_t) note] > 0)
-                {
-                    if (tick <= startTick[(size_t) note])   // the same note twice at once: one is enough
-                        continue;
-                    track.addEvent (juce::MidiMessage::noteOff (channel, note), tick);   // retriggered
-                }
-                if (tick >= endTick)
-                {
-                    sounding[(size_t) note] = 0;
-                    continue;
-                }
-                track.addEvent (juce::MidiMessage::noteOn (channel, note, (juce::uint8) juce::jlimit (1, 127, (int) e->velocity)), tick);
-                sounding[(size_t) note] = 1;
-                startTick[(size_t) note] = tick;
+                open[(size_t) pitch].push_back (notes.size());
+                notes.push_back ({ pitch, toTick (e.ppq), endTick, juce::jlimit (1, 127, (int) e.velocity) });
             }
-            else if (sounding[(size_t) note] > 0)
+            else if (! open[(size_t) pitch].empty())
             {
-                sounding[(size_t) note] = 0;
-                track.addEvent (juce::MidiMessage::noteOff (channel, note),
-                                juce::jmin (endTick, juce::jmax (tick, startTick[(size_t) note] + minLength)));
+                // The off closes the oldest note of that pitch still open.
+                auto& waiting = open[(size_t) pitch];
+                size_t best = 0;
+                for (size_t k = 1; k < waiting.size(); ++k)
+                    if (notes[waiting[k]].start < notes[waiting[best]].start)
+                        best = k;
+                notes[waiting[best]].end = juce::jmax (notes[waiting[best]].start, toTick (e.ppq));
+                waiting.erase (waiting.begin() + (std::ptrdiff_t) best);
             }
         }
-        for (int n = 0; n < 128; ++n)   // nothing left hanging at the end
-            if (sounding[(size_t) n] > 0)
-                track.addEvent (juce::MidiMessage::noteOff (channel, n), endTick);
+        std::stable_sort (notes.begin(), notes.end(), [] (const Note& x, const Note& y)
+                          { return x.pitch != y.pitch ? x.pitch < y.pitch : x.start < y.start; });
+        const double minLength = ticksPerQuarter / 16.0;
+        std::vector<Note> clean;
+        for (size_t k = 0; k < notes.size(); ++k)
+        {
+            auto n = notes[k];
+            if (n.start >= endTick)
+                continue;
+            if (! clean.empty() && clean.back().pitch == n.pitch && clean.back().start == n.start)
+            {
+                // The same note twice at once (two lanes): one, the louder and the longer.
+                clean.back().velocity = juce::jmax (clean.back().velocity, n.velocity);
+                clean.back().end = juce::jmax (clean.back().end, n.end);
+                continue;
+            }
+            n.end = juce::jmin (endTick, juce::jmax (n.end, n.start + minLength));
+            clean.push_back (n);
+        }
+        for (size_t k = 0; k + 1 < clean.size(); ++k)   // struck again: the earlier one stops there
+            if (clean[k + 1].pitch == clean[k].pitch)
+                clean[k].end = juce::jmin (clean[k].end, clean[k + 1].start);
+        for (const auto& n : clean)
+            if (n.end > n.start)
+                track.addEvent (juce::MidiMessage::noteOff (channel, n.pitch), n.end);
+        for (const auto& n : clean)   // (added after the offs: at the same tick they follow them)
+            if (n.end > n.start)
+                track.addEvent (juce::MidiMessage::noteOn (channel, n.pitch, (juce::uint8) n.velocity), n.start);
         // Every clip as long as asked: many DAWs cut a clip after its last event, so the end
         // gets a silent one (pitch bend in the middle: no change).
         const double end = beats * ticksPerQuarter;
@@ -1465,11 +1475,47 @@ juce::File FaseGrooveGuitarProcessor::linkFile()
         .getChildFile ("Fase Groove").getChildFile ("Link.xml");
 }
 
+juce::File FaseGrooveGuitarProcessor::leadFile()
+{
+    return linkFile().getSiblingFile ("GuitarLead.xml");
+}
+
+void FaseGrooveGuitarProcessor::setLeadMode (bool on)
+{
+    leadMode = on;
+    writeLead();
+}
+
+void FaseGrooveGuitarProcessor::writeLead()
+{
+    // Written while linked and leading (refreshed every 2 seconds: a guitar closed or crashed
+    // stops leading on its own); otherwise cleared, if this guitar was the one leading.
+    const auto me = juce::String::toHexString ((juce::pointer_sized_int) this);
+    const auto file = leadFile();
+    const double now = juce::Time::getMillisecondCounterHiRes();
+    if (linkOn.load() && leadMode.load())
+    {
+        juce::XmlElement xml ("FaseGrooveLead");
+        xml.setAttribute ("instance", me);
+        xml.setAttribute ("lead", 1);
+        xml.setAttribute ("time", juce::String (juce::Time::currentTimeMillis()));
+        file.getParentDirectory().createDirectory();
+        xml.writeTo (file);
+        leadWrittenAt = now;
+    }
+    else if (file.existsAsFile())
+    {
+        if (auto xml = juce::parseXML (file); xml != nullptr && xml->getStringAttribute ("instance") == me)
+            file.deleteFile();
+    }
+}
+
 void FaseGrooveGuitarProcessor::setLinked (bool on)
 {
     if (on == linkOn.load())
         return;
     linkOn = on;
+    writeLead();
     linkSeenText = {};
     linkShared = {};
     linkAnchor = -1.0;
@@ -1536,6 +1582,8 @@ void FaseGrooveGuitarProcessor::updateLink()
 {
     if (! linkOn.load())
         return;
+    if (leadMode.load() && juce::Time::getMillisecondCounterHiRes() - leadWrittenAt > 2000.0)
+        writeLead();
 
     const auto file = linkFile();
     const auto me = juce::String::toHexString ((juce::pointer_sized_int) this);
@@ -1668,6 +1716,7 @@ juce::ValueTree FaseGrooveGuitarProcessor::stateTree() const
     }
     juce::ValueTree link ("Link");
     link.setProperty ("on", linkOn.load(), nullptr);
+    link.setProperty ("lead", leadMode.load(), nullptr);
     juce::String locks;
     for (bool b : segmentLocked)
         locks << (b ? "1" : "0");
@@ -1739,7 +1788,11 @@ void FaseGrooveGuitarProcessor::applyStateTree (const juce::ValueTree& source)
         templateActive = templateName.isNotEmpty() && (bool) groove.getProperty ("active", true);
     }
     if (const auto link = state.getChildWithName ("Link"); link.isValid())
+    {
+        leadMode = (bool) link.getProperty ("lead", false);
         setLinked ((bool) link.getProperty ("on", false));
+        writeLead();
+    }
     const auto locks = grid.getProperty ("locks").toString();
     for (int i = 0; i < fgg::numSegments; ++i)
         segmentLocked[(size_t) i] = locks.substring (i, i + 1) == "1";

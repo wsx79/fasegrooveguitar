@@ -4,6 +4,13 @@
 
 All notable changes to **Fase Groove Guitar**.
 
+## [0.3.0] - 2026-10-19
+
+- **LEAD** (in the guitar part's heading, with LINK on): the guitar plays the main riff and a linked Fase Groove Piano only fills in a chord now and then. Off, or without LINK, nothing changes.
+- MIDI export rebuilt: every note paired with its end, a string struck again ends the note before, two lanes on the same note at once give one note, nothing hanging or zero-length.
+- MIDI chord input: no memory allocated on the audio thread.
+- New tests on every preset groove: clean notes, one track and the tracks per lane alike, the same settings the same clip.
+
 ## [0.2.2] - 2026-10-19
 
 - The interface always in the chosen language (some texts stayed in English when the plug-in opened).

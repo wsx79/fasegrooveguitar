@@ -660,6 +660,7 @@ private:
     DragTile dragTile;
     juce::TextButton saveButton { "SAVE .MID..." }, songButton { "FULL SONG..." }, wavButton { "SAVE .WAV..." };
     juce::TextButton linkButton { "LINK" };
+    juce::TextButton leadButton { "LEAD" };   // the guitar leads, a linked piano fills in (only while linked)
     std::unique_ptr<juce::FileChooser> chooser;
 
     SongOverlay songOverlay { processor };

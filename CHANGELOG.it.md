@@ -4,6 +4,13 @@
 
 Tutte le modifiche importanti di **Fase Groove Guitar**.
 
+## [0.3.0] - 2026-10-19
+
+- **SOLISTA** (nell'intestazione della parte di chitarra, con LINK attivo): la chitarra suona il riff principale e Fase Groove Piano collegato aggiunge solo qualche accordo ogni tanto. Spento, o senza LINK, non cambia nulla.
+- Export MIDI rifatto: ogni nota abbinata alla sua fine, una corda ribattuta chiude la nota prima, due corsie sulla stessa nota insieme danno una nota sola, niente note appese o di durata zero.
+- Accordi da MIDI in ingresso: nessuna allocazione di memoria nel thread audio.
+- Nuovi test su ogni groove: note pulite, traccia unica e tracce per corsia coerenti, stesse impostazioni stessa clip.
+
 ## [0.2.2] - 2026-10-19
 
 - Interfaccia sempre nella lingua scelta (all'apertura alcuni testi restavano in inglese).
