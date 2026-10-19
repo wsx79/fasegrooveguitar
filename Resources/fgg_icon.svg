@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Fase Groove Guitar: a slanted guitar neck (six strings, frets) with a chord shape on it,
+       under a speed bar that echoes the FS / Pitch logo, the same family as Fase Groove Drums. -->
+  <defs>
+    <linearGradient id="warm" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f2a65a"/>
+      <stop offset="1" stop-color="#e85d75"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="256" height="256" rx="56" ry="56" fill="#17111c"/>
+
+  <g transform="translate(27 0) skewX(-12)">
+    <!-- top rail, sharp angled ends like the F of the FS logo -->
+    <path d="M 58 40 L 214 40 L 204 52 L 46 52 Z" fill="#ffffff"/>
+
+    <!-- the fretboard -->
+    <rect x="46" y="64" width="162" height="124" rx="8" fill="#2c2433"/>
+
+    <!-- frets -->
+    <rect x="86" y="64" width="5" height="124" fill="#4a3f52"/>
+    <rect x="128" y="64" width="5" height="124" fill="#4a3f52"/>
+    <rect x="170" y="64" width="5" height="124" fill="#4a3f52"/>
+
+    <!-- six strings, the low ones thicker -->
+    <rect x="46" y="72"  width="162" height="2"   fill="#ffffff" opacity="0.75"/>
+    <rect x="46" y="94"  width="162" height="2.5" fill="#ffffff" opacity="0.75"/>
+    <rect x="46" y="116" width="162" height="3"   fill="#ffffff" opacity="0.75"/>
+    <rect x="46" y="138" width="162" height="3.5" fill="#ffffff" opacity="0.75"/>
+    <rect x="46" y="160" width="162" height="4"   fill="#ffffff" opacity="0.75"/>
+    <rect x="46" y="181" width="162" height="4.5" fill="#ffffff" opacity="0.75"/>
+
+    <!-- a chord shape: the fingers on the strings -->
+    <circle cx="66"  cy="183" r="9.5" fill="url(#warm)"/>
+    <circle cx="150" cy="161" r="9.5" fill="url(#warm)"/>
+    <circle cx="150" cy="139" r="9.5" fill="url(#warm)"/>
+    <circle cx="108" cy="117" r="9.5" fill="url(#warm)"/>
+    <circle cx="66"  cy="95"  r="9.5" fill="url(#warm)" opacity="0.75"/>
+    <circle cx="66"  cy="73"  r="9.5" fill="url(#warm)" opacity="0.75"/>
+
+    <!-- floor line -->
+    <path d="M 46 200 L 208 200 L 200 210 L 38 210 Z" fill="#ffffff" opacity="0.9"/>
+  </g>
+</svg>
