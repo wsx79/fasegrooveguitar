@@ -6,6 +6,7 @@ Tutte le modifiche importanti di **Fase Groove Guitar**.
 
 ## [0.3.4] - 2026-10-19
 
+- Controlli comuni a Piano, Drums e Guitar: stessi pulsanti, menu, font Inter, focus, stati attivi e colori dei comandi, mantenendo la disposizione attuale.
 - I rilasci MIDI mantengono il canale della nota iniziale, anche cambiando canale durante la riproduzione.
 - I preset vecchi ripristinano i valori predefiniti dei parametri mancanti, senza ereditare il preset precedente.
 - MIDI Start e Song Position Pointer aggiornano la posizione del clock nel blocco corrente.
