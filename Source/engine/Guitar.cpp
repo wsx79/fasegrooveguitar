@@ -471,7 +471,7 @@ const std::vector<GuitarPattern>& guitarPatterns()
 
         // ---- Chill & Pads: swells and soft picking ----
         groove ("Chill Swell", "Chill & Pads",
-                { { SW, "X... .... .... ...." }, { AR, ".... .... x.x. x.x." } }),
+                { { SW, "X... .... .... .... X... .... .... ...." }, { LK, ".... .... ..x. .... .... ..x. .x.. x.x." } }),
         groove ("Chill Picking", "Chill & Pads",
                 { { AR, "x.x. x.x. x.x. x.x." }, { SW, "X... .... .... ...." } }),
         groove ("Sunset Chords", "Chill & Pads",

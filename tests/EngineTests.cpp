@@ -109,6 +109,21 @@ static void testPresets()
     }
     for (const auto* genre : grooveCategories())
         CHECK (perGenre[genre] >= 3);   // every genre has a choice of grooves
+
+    // ...and a real choice: two grooves of a genre differ by at least 10 hits over two bars.
+    for (size_t a = 0; a < presets.size(); ++a)
+        for (size_t b = a + 1; b < presets.size(); ++b)
+            if (presets[a].category == presets[b].category)
+            {
+                auto x = presets[a], y = presets[b];
+                fitPattern (x, 32);
+                fitPattern (y, 32);
+                int differences = 0;
+                for (size_t l = 0; l < (size_t) numLanes; ++l)
+                    for (size_t i = 0; i < 32; ++i)
+                        differences += isHit (x.lanes[l][i]) != isHit (y.lanes[l][i]) ? 1 : 0;
+                CHECK (differences >= 10);
+            }
     CHECK (grooveCategories().size() == 13);
     CHECK (userPatternIndex() == randomPatternIndex() + 1);
 }
