@@ -4,7 +4,7 @@
 
 All notable changes to **Fase Groove Guitar**.
 
-## [Unreleased]
+## [0.2.0] - 2026-10-19
 
 - **174 chord progressions in a browser**, as the grooves': ten categories, every progression with
   its chords in the key. Fase Groove Piano's progressions (built on 13 scales as the piano builds

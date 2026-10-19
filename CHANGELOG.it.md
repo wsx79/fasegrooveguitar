@@ -4,7 +4,7 @@
 
 Tutte le modifiche importanti di **Fase Groove Guitar**.
 
-## [Unreleased]
+## [0.2.0] - 2026-10-19
 
 - **174 giri di accordi in un browser**, come quello dei groove: dieci categorie, ogni giro con i suoi
   accordi nella tonalità. I giri di Fase Groove Piano (costruiti su 13 scale come li costruisce il
