@@ -207,6 +207,7 @@ void loadSaved()
     {
         currentLanguage = juce::jlimit (0, numLanguages - 1, settings->getIntValue ("language"));
         applyToJuce();
+        refreshBindings();   // texts and tips set up before the language was read
         return;
     }
 
@@ -217,6 +218,7 @@ void loadSaved()
         if (system.startsWith (codes[i]))
             currentLanguage = i;
     applyToJuce();
+    refreshBindings();
 }
 
 juce::String upper (const juce::String& text)

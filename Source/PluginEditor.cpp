@@ -1309,7 +1309,7 @@ void DragTile::paint (juce::Graphics& g)
         }
 
         g.setColour (Palette::background);
-        g.setFont (font (15.0f, true));
+        g.setFont (font (juce::jmin (15.0f, r.getWidth() / 12.5f), true));
         auto titleArea = subtitle.isEmpty() ? content : content.removeFromTop (content.getHeight() * 0.55f);
         g.drawFittedText (tr (title), titleArea.toNearestInt(), subtitle.isEmpty() ? juce::Justification::centred : juce::Justification::centredBottom, 1, 0.8f);
         if (subtitle.isNotEmpty())
@@ -1376,7 +1376,7 @@ SongOverlay::SongOverlay (FaseGrooveGuitarProcessor& p) : processor (p)
         box->onChange = [this, i, box] { processor.setSongBars (i, box->getSelectedId() - 1); refresh(); };
         addAndMakeVisible (box);
 
-        auto* fresh = newButtons.add (new IconButton (IconButton::Icon::dice));
+        auto* fresh = newButtons.add (new IconButton (IconButton::Icon::none));
         Localisation::bindText (*fresh, "NEW VARIATION");
         fresh->iconColour = Palette::accent;
         Localisation::bindTip (*fresh, "This section plays its own version of the groove (hats, percussion and ghost notes move)");
@@ -1449,7 +1449,10 @@ SongOverlay::SongOverlay (FaseGrooveGuitarProcessor& p) : processor (p)
         return files;
     };
     for (auto* t : { &sectionTile, &sectionsTile, &songTile })
+    {
+        t->filled = true;   // the orange tiles of Fase Groove Piano
         addAndMakeVisible (t);
+    }
 
     saveSongButton.onClick = [this] { saveSong(); };
     saveSectionsButton.onClick = [this] { saveSections(); };
@@ -1560,14 +1563,15 @@ void SongOverlay::resized()
         row.removeFromLeft (190);   // section name
         barBoxes[i]->setBounds (row.removeFromLeft (76));
         row.removeFromLeft (14);
-        newButtons[i]->setBounds (row.removeFromLeft (160));
+        newButtons[i]->setBounds (row.removeFromLeft (150));
         row.removeFromLeft (6);
-        originalButtons[i]->setBounds (row.removeFromLeft (96));
+        originalButtons[i]->setBounds (row.removeFromLeft (100));
         row.removeFromLeft (14);
-        fillBoxes[i]->setBounds (row.removeFromLeft (220));
+        fillBoxes[i]->setBounds (row);
     }
 
     // Bottom, as in Fase Groove Piano: the three drag tiles, then SAVE and CLOSE on one row.
+    resetButton.setBounds (card().toNearestInt().reduced (28, 20).removeFromTop (30).removeFromRight (120).withSizeKeepingCentre (120, 28));
     auto bottom = card().toNearestInt().reduced (28, 20).removeFromBottom (52);
     closeButton.setBounds (bottom.removeFromRight (72).withSizeKeepingCentre (72, 32));
     bottom.removeFromRight (10);
@@ -1584,8 +1588,7 @@ void SongOverlay::resized()
     // Above the tiles: what they drag (and SAVE writes), as the piano's instrument row.
     auto parts = card().toNearestInt().reduced (28, 20).withTrimmedBottom (60).removeFromBottom (30);
     parts = parts.withLeft (sectionsTile.getX() + 130).withRight (saveSectionsButton.getRight());
-    resetButton.setBounds (parts.removeFromLeft (100));
-    parts.removeFromLeft (10);
+    parts.removeFromLeft (90);   // "MIDI" label
     allButton.setBounds (parts.removeFromLeft (parts.getWidth() / 3));
     tracksButton.setBounds (parts);
     allButton.setConnectedEdges (juce::Button::ConnectedOnRight);
@@ -1643,7 +1646,7 @@ void SongOverlay::paint (juce::Graphics& g)
             g.setColour (Palette::background);
             g.setFont (font (12.0f, true));
             auto text = block.reduced (6.0f, 3.0f);
-            g.drawFittedText (tr (fgg::sectionName ((int) part.section)), text.removeFromTop (text.getHeight() * 0.55f).toNearestInt(),
+            g.drawFittedText (tr (FaseGrooveGuitarProcessor::sectionClipName (i)), text.removeFromTop (text.getHeight() * 0.55f).toNearestInt(),
                               juce::Justification::centredLeft, 1, 0.6f);
             g.setFont (font (10.5f));
             g.drawFittedText (juce::String (part.bars) + " " + tr ("bars"), text.toNearestInt(), juce::Justification::centredLeft, 1, 0.6f);
@@ -1681,12 +1684,19 @@ void SongOverlay::paint (juce::Graphics& g)
     // Length of the whole song.
     const double bpm = processor.exportBpm();
     const int seconds = bpm > 0.0 ? juce::roundToInt (total * 4 * 60.0 / bpm) : 0;
-    auto info = card().reduced (28.0f, 20.0f).withTrimmedBottom (40.0f + 12.0f + 68.0f + 6.0f).removeFromBottom (20.0f);
+    auto info = card().reduced (28.0f, 20.0f).withTrimmedBottom (60.0f).removeFromBottom (34.0f);
     g.setColour (Palette::text);
-    g.setFont (font (13.0f, true));
-    g.drawText (tr ("Total") + ": " + juce::String (total) + " " + tr ("bars") + "   " + juce::String (seconds / 60) + ":" + juce::String (seconds % 60).paddedLeft ('0', 2)
-                    + "  @ " + juce::String (bpm, 1) + " BPM",
+    g.setFont (font (15.0f, true));
+    g.drawText (tr ("Total") + ": " + juce::String (total) + " " + tr ("bars"), info.removeFromTop (19.0f), juce::Justification::centredLeft);
+    g.setColour (Palette::dim);
+    g.setFont (font (12.0f));
+    g.drawText (juce::String (seconds / 60) + ":" + juce::String (seconds % 60).paddedLeft ('0', 2) + "  @ " + juce::String (bpm, 1) + " BPM",
                 info, juce::Justification::centredLeft);
+    {
+        auto label = allButton.getBounds().toFloat().withX ((float) allButton.getX() - 90.0f).withWidth (82.0f);
+        g.setFont (font (10.5f, true));
+        g.drawText ("MIDI", label, juce::Justification::centredRight);
+    }
 }
 
 void SongOverlay::saveSong()
@@ -2470,7 +2480,7 @@ MixerView::MixerView (FaseGrooveGuitarProcessor& p) : processor (p)
         for (int k = 0; k < 2; ++k)
         {
             auto* knob = (k == 0 ? pushKnobs : swingKnobs).add (new juce::Slider (juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::TextBoxBelow));
-            knob->setTextBoxStyle (juce::Slider::TextBoxBelow, false, 58, 13);
+            knob->setTextBoxStyle (juce::Slider::TextBoxBelow, false, 70, 16);
             knob->setColour (juce::Slider::rotarySliderFillColourId, laneColour (l));
             knob->setColour (juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
             knob->setDoubleClickReturnValue (true, k == 0 ? 0.0 : 1.0);
@@ -2497,9 +2507,9 @@ void MixerView::resized()
         auto r = strip (l).reduced (4, 2);
         r.removeFromTop (30);
         r.removeFromTop (10);
-        pushKnobs[l]->setBounds (r.removeFromTop (40));
+        pushKnobs[l]->setBounds (r.removeFromTop (78));
         r.removeFromTop (10);
-        swingKnobs[l]->setBounds (r.removeFromTop (40));
+        swingKnobs[l]->setBounds (r.removeFromTop (78));
         mutes[l]->setBounds (r.removeFromBottom (22).reduced (6, 0));
         r.removeFromBottom (4);
         faders[l]->setBounds (r);
@@ -2528,7 +2538,7 @@ void MixerView::paint (juce::Graphics& g)
         g.setColour (Palette::dim);
         g.setFont (font (8.5f, true));
         g.drawText (Localisation::upper (tr ("Push")), r.withTrimmedTop (32.0f).withHeight (10.0f), juce::Justification::centred);
-        g.drawText (Localisation::upper (tr ("Swing")), r.withTrimmedTop (82.0f).withHeight (10.0f), juce::Justification::centred);
+        g.drawText (Localisation::upper (tr ("Swing")), r.withTrimmedTop (120.0f).withHeight (10.0f), juce::Justification::centred);
     }
 }
 

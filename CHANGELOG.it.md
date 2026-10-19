@@ -4,6 +4,12 @@
 
 Tutte le modifiche importanti di **Fase Groove Guitar**.
 
+## [0.2.2] - 2026-10-19
+
+- Interfaccia sempre nella lingua scelta (all'apertura alcuni testi restavano in inglese).
+- Finestra del brano identica a quella di Fase Groove Piano: tessere arancioni, totale su due righe, fill larghi quanto la riga, "Groove principale" sulla linea del tempo, RESET accanto al titolo; battute in italiano.
+- Manopole PUSH e SWING del mixer più grandi.
+
 ## [0.2.1] - 2026-10-19
 
 - Interfaccia molto più leggera: la cronologia annulla si salva solo dopo una modifica (non più copie dell'intero stato due volte al secondo) e i pannelli si aggiornano 10 volte al secondo, le luci 30.

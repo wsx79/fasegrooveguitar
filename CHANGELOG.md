@@ -4,6 +4,12 @@
 
 All notable changes to **Fase Groove Guitar**.
 
+## [0.2.2] - 2026-10-19
+
+- The interface always in the chosen language (some texts stayed in English when the plug-in opened).
+- Song window identical to Fase Groove Piano's: orange drag tiles, total on two lines, fills as wide as the row, "Main groove" on the timeline, RESET beside the title.
+- Bigger PUSH and SWING knobs in the mixer.
+
 ## [0.2.1] - 2026-10-19
 
 - Much lighter interface: the undo history is saved only after an edit (no more snapshots of the whole state twice a second) and the panels refresh 10 times a second, the lights 30.
