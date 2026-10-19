@@ -580,15 +580,19 @@ namespace
         int ons = 0;
         for (const auto m : first)
             ons += m.getMessage().isNoteOn() ? 1 : 0;
-        CHECK (ons == 3);
+        CHECK (ons > 0 && ons <= 3);   // the remaining strings can belong to later blocks
         int offs = 0;
         for (int b = 0; b < 60; ++b)
         {
             juce::MidiBuffer m2;
             p.processBlock (buffer, m2);
             for (const auto m : m2)
+            {
+                ons += m.getMessage().isNoteOn() ? 1 : 0;
                 offs += m.getMessage().isNoteOff() ? 1 : 0;
+            }
         }
+        CHECK (ons == 3);
         CHECK (offs >= 3);
         p.setPlayHead (nullptr);
     }
