@@ -965,6 +965,7 @@ void FaseGrooveGuitarProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     const bool running = (sequencerOn && hostPlaying) || preview;
 
     double startPpq = 0.0;
+    double linkCorrection = 0.0;   // see the linked clock below
     if (followHost)
         startPpq = hostPpq;
     else if (running)
@@ -973,7 +974,18 @@ void FaseGrooveGuitarProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
         // Else a free-running clock: from the start, or where PAUSE left it; REWIND jumps back.
         if (const double anchor = linkAnchor.load(); linkOn.load() && preview && anchor >= 0.0)
         {
-            startPpq = juce::jmax (0.0, (juce::Time::getMillisecondCounterHiRes() - anchor) * bpm / 60000.0);
+            // The shared clock is the system time, which doesn't move with the audio: read
+            // block by block it jumps back and forth, and notes would play twice or not at all.
+            // So the beat goes on from the last block, and drifts gently towards the shared clock
+            // (it only jumps when far from it: a start, or another plug-in moved it).
+            const double shared = juce::jmax (0.0, (juce::Time::getMillisecondCounterHiRes() - anchor) * bpm / 60000.0);
+            if (wasRunning && std::abs (shared - expectedNextPpq) < 0.5)
+            {
+                startPpq = expectedNextPpq;
+                linkCorrection = juce::jlimit (-0.03 * blockBeats, 0.03 * blockBeats, 0.05 * (shared - expectedNextPpq));
+            }
+            else
+                startPpq = shared;
             previewRewind = false;
         }
         else
@@ -994,8 +1006,8 @@ void FaseGrooveGuitarProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
         if (! wasRunning || std::abs (startPpq - expectedNextPpq) > 0.05)
             engine.allNotesOff (startPpq, events);   // start, loop or jump
 
-        engine.render (startPpq, startPpq + blockBeats, settings, events);
-        expectedNextPpq = internalPpq = startPpq + blockBeats;
+        engine.render (startPpq, startPpq + blockBeats + linkCorrection, settings, events);
+        expectedNextPpq = internalPpq = startPpq + blockBeats + linkCorrection;
 
         const auto step = (long long) std::floor (startPpq / fgg::stepLength);
         const int n = fgg::GrooveEngine::patternLength (settings);
