@@ -32,6 +32,8 @@ ascolta con la chitarra guida interna, poi **trascinalo nella DAW come clip MIDI
 tuo strumento di chitarra. I controlli comuni hanno lo stesso stile di Piano e Drums, e **LINK** li fa suonare
 tutti e tre insieme.
 
+**Preset Arranger:** nel menu degli stili trovi tredici nuove voci `Arranger: …`, coordinate con Fase Groove Arranger 0.4.7. Scegli lo stesso genere in Piano, Drums e Guitar e usa LINK per tonalità, tempo e trasporto. Il Jackin segue la direzione funky/disco indicata (Da Funk Junkies), con chops, basso articolato e chitarra percussiva. I preset precedenti restano disponibili e i progetti già salvati conservano le proprie scelte; i livelli e gli effetti della DAW partecipano sempre al mix finale.
+
 ## Funzioni
 
 - 🎸 **43 groove in 13 generi**, gli stessi di Fase Groove Piano e Drums: Piano House, Soulful,

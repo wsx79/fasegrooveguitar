@@ -2,7 +2,9 @@
 
 *🇬🇧 [English guide](GUIDE.md)*
 
-Questa guida descrive la [v0.3.4](https://github.com/wsx79/fasegrooveguitar/releases/tag/v0.3.4). Controlli e posizioni sono conservati; pulsanti, menu e colori comuni hanno uno stile uniforme.
+Questa guida descrive la [v0.5.0](https://github.com/wsx79/fasegrooveguitar/releases/tag/v0.5.0). Controlli e posizioni sono conservati; pulsanti, menu e colori comuni hanno uno stile uniforme.
+
+**Preset Arranger:** nel menu degli stili trovi tredici nuove voci `Arranger: …`, coordinate con Fase Groove Arranger 0.4.7. Scegli lo stesso genere in Piano, Drums e Guitar e usa LINK per tonalità, tempo e trasporto. Il Jackin segue la direzione funky/disco indicata (Da Funk Junkies), con chops, basso articolato e chitarra percussiva. I preset precedenti restano disponibili e i progetti già salvati conservano le proprie scelte; i livelli e gli effetti della DAW partecipano sempre al mix finale.
 
 ## 1. Installazione
 

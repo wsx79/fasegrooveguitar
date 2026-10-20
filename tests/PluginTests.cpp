@@ -13,6 +13,8 @@
 #include "../Source/GuideGuitar.h"
 
 #include <cstdio>
+#include "FamilyAudioEvidence.h"
+#include "../Source/FamilySoundProfiles.h"
 #include <set>
 
 namespace
@@ -260,8 +262,8 @@ namespace
 
         // A style: a groove of the genre, its swing and its chords.
         const auto names = FaseGrooveGuitarProcessor::styleNames();
-        CHECK (names.size() == 13);
-        for (int i = 0; i < names.size(); ++i)
+        CHECK (names.size() == 13+fgfamily::numGenres);
+        for (int i = 0; i < 13; ++i)
         {
             p.applyStyle (i);
             const int pattern = juce::roundToInt (value (p, ParamIDs::pattern));
@@ -890,9 +892,31 @@ namespace
 
 }
 
+namespace {
+
+    void testFamilyPresets(){
+        FaseGrooveGuitarProcessor p;const int first=p.styleNames().size()-fgfamily::numGenres;
+        for(int genre=0;genre<fgfamily::numGenres;++genre){
+            p.applyStyle(first+genre);const auto& a=fgfamily::sound(genre);
+            const auto settings=p.currentSettings();
+            CHECK(settings.randomGenre==genre);
+            CHECK(juce::roundToInt(value(p,ParamIDs::kit))==a.guitar);
+            CHECK(std::abs(value(p,ParamIDs::tone)-a.guitarTone)<.001);
+            CHECK(!fgg::GrooveEngine::renderClip(settings,32).empty());
+            const int prog=juce::roundToInt(value(p,ParamIDs::progression));
+            CHECK(juce::String(fgg::progressions()[(size_t)prog].name)==fgfamily::progressionNames[(size_t)genre]);
+            if(genre==4){
+                CHECK(settings.pattern==fgg::userPatternIndex());
+                for(int lane=0;lane<fgg::numLanes;++lane)for(int step=0;step<16;++step)CHECK(settings.user[(size_t)lane][(size_t)step]=='.');
+            }
+        }
+    }
+}
+
 int main (int argc, char** argv)
 {
     juce::ScopedJuceInitialiser_GUI juce;
+    if(argc>2&&juce::String(argv[1])=="--family-audio")return writeFamilyAudioEvidence<FaseGrooveGuitarProcessor>(juce::File::getCurrentWorkingDirectory().getChildFile(argv[2]),"Guitar");
 
     if (argc > 3 && juce::String (argv[1]) == "--screenshots")
         Localisation::setCurrent ((Localisation::Language) juce::String (argv[3]).getIntValue());
@@ -902,6 +926,7 @@ int main (int argc, char** argv)
         return 0;
     }
 
+    testFamilyPresets();
     testOldPresetDefaults();
     testStateRoundTrip();
     testGridEditing();

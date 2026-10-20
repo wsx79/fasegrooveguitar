@@ -4,6 +4,11 @@
 
 All notable changes to **Fase Groove Guitar**.
 
+## [0.5.0] - 2026-10-20
+
+- Thirteen additional `Arranger:` presets coordinate palettes, articulation and balance with Fase Groove Arranger 0.4.7, including the updated Jackin in the requested Da Funk Junkies direction.
+- Previous preset indexes and values remain available; saved projects are not rewritten and the theme and control layout stay unchanged.
+
 ## [0.4.0] - 2026-10-19
 
 - Real guitar shapes: every chord type on every root is voiced as a playable shape (one note per string, within four frets, a barre and three fingers), the 3rd and 7th always there. The shapes move with the progression: each chord stays close to the one before.

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 #include "PluginProcessor.h"
+#include "FamilySoundProfiles.h"
 #include "PluginEditor.h"
 #include "Localisation.h"
 
@@ -63,6 +64,20 @@ namespace
         { "Neo Soul & Broken", "Neo Soul Lazy",      0.40f, 0, fgg::FillStyle::lickRun,      1, 2 },
         { "Chill & Pads",      "Chill Picking",      0.30f, 0, fgg::FillStyle::swellOut,     3, 2 },
         { "Dance Stabs",       "Big Stabs",          0.05f, 4, fgg::FillStyle::stabStutter,  0, 1 },
+        // Explicit ecosystem presets, appended so legacy indexes remain stable.
+        { fgfamily::names[0], "", 0,0, fgg::FillStyle::mix,0,0 },
+        { fgfamily::names[1], "", 0,0, fgg::FillStyle::mix,0,0 },
+        { fgfamily::names[2], "", 0,0, fgg::FillStyle::mix,0,0 },
+        { fgfamily::names[3], "", 0,0, fgg::FillStyle::mix,0,0 },
+        { fgfamily::names[4], "", 0,0, fgg::FillStyle::mix,0,0 },
+        { fgfamily::names[5], "", 0,0, fgg::FillStyle::mix,0,0 },
+        { fgfamily::names[6], "", 0,0, fgg::FillStyle::mix,0,0 },
+        { fgfamily::names[7], "", 0,0, fgg::FillStyle::mix,0,0 },
+        { fgfamily::names[8], "", 0,0, fgg::FillStyle::mix,0,0 },
+        { fgfamily::names[9], "", 0,0, fgg::FillStyle::mix,0,0 },
+        { fgfamily::names[10], "", 0,0, fgg::FillStyle::mix,0,0 },
+        { fgfamily::names[11], "", 0,0, fgg::FillStyle::mix,0,0 },
+        { fgfamily::names[12], "", 0,0, fgg::FillStyle::mix,0,0 },
     };
 
     int indexOfGroove (const char* name)
@@ -925,6 +940,43 @@ void FaseGrooveGuitarProcessor::applyStyle (int index)
 {
     if (! juce::isPositiveAndBelow (index, (int) std::size (styles)))
         return;
+
+    const int familyStart=(int)std::size(styles)-fgfamily::numGenres;
+    if(index>=familyStart){
+        const int genre=index-familyStart;const auto& a=fgfamily::sound(genre);
+        setParameterFromUI(ParamIDs::tempo,(float)fgfamily::tempos[(size_t)genre]);
+        setParameterFromUI(ParamIDs::swing,fgfamily::swing[(size_t)genre]);
+        setParameterFromUI(ParamIDs::section,0);
+        setParameterFromUI(ParamIDs::velocity,100);
+        setParameterFromUI(ParamIDs::variation,2);
+        setParameterFromUI(ParamIDs::genre,(float)genre);
+        setLeadMode(genre==8);
+        setParameterFromUI(ParamIDs::humanize,.2f);
+        setParameterFromUI(ParamIDs::density,genre==8?.68f:genre==4?.22f:.35f);
+        setParameterFromUI(ParamIDs::accents,.85f);
+        setParameterFromUI(ParamIDs::kit,(float)a.guitar);
+        setParameterFromUI(ParamIDs::tone,(float)a.guitarTone);
+        setParameterFromUI(ParamIDs::strum,genre==8?9.6f:genre==4?4.8f:17.6f);
+        setParameterFromUI(ParamIDs::letRing,genre==11?1.f:0.f);
+        setParameterFromUI(ParamIDs::roomForBand,1);
+        setParameterFromUI(ParamIDs::reverb,.07f);
+        setParameterFromUI(ParamIDs::volume,juce::Decibels::gainToDecibels((float)(.225*a.guitarGain)));
+        setParameterFromUI(ParamIDs::fills,0);
+        if(genre==4){
+            const auto& p=fgg::guitarPatterns()[(size_t)indexOfGroove("Chicago Chank")];
+            for(int lane=0;lane<fgg::numLanes;++lane)for(int step=0;step<fgg::userPatternLength;++step){
+                const auto& line=p.lanes[(size_t)lane];userGrid[(size_t)lane][(size_t)step]=step%32<16?'.':line[(size_t)step%line.size()];
+            }
+            resetStepVelocities();
+            setParameterFromUI(ParamIDs::pattern,(float)fgg::userPatternIndex());
+        }else setParameterFromUI(ParamIDs::pattern,(float)fgg::randomPatternIndex());
+        setParameterFromUI(ParamIDs::chordColour,(float)std::min(2,fgfamily::extensions[(size_t)genre]));
+        const auto& progressions=fgg::progressions();
+        int progression=fgg::genreProgression(genre);
+        for(size_t i=0;i<progressions.size();++i)if(juce::String(progressions[i].name)==fgfamily::progressionNames[(size_t)genre]){progression=(int)i;break;}
+        applyProgression(progression);
+        return;
+    }
 
     const auto& s = styles[index];
     setParameterFromUI (ParamIDs::pattern, (float) indexOfGroove (s.groove));
