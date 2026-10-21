@@ -62,6 +62,10 @@ jobs:
       - name: Engine tests
         run: ctest --test-dir build -C Release --output-on-failure
 
+      - name: Diagnose Linux test failure
+        if: failure() && runner.os == 'Linux'
+        run: gdb --batch -ex run -ex 'thread apply all bt' --args ./build/fgg_plugin_tests_artefacts/Release/fgg_plugin_tests
+
       - name: Render all thirteen family profiles and retain Jackin evidence
         if: runner.os == 'Linux'
         run: ./build/fgg_plugin_tests_artefacts/Release/fgg_plugin_tests --family-audio family-audio

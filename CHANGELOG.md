@@ -6,7 +6,7 @@ All notable changes to **Fase Groove Guitar**.
 
 ## [0.5.0] - 2026-10-20
 
-- Thirteen additional `Arranger:` presets coordinate palettes, articulation and balance with Fase Groove Arranger 0.4.7, including the updated Jackin in the requested Da Funk Junkies direction.
+- Thirteen additional `Arranger:` presets coordinate palettes, articulation and balance with Fase Groove Arranger 0.4.7, including the updated Jackin in the funky/disco direction.
 - Previous preset indexes and values remain available; saved projects are not rewritten and the theme and control layout stay unchanged.
 
 ## [0.4.0] - 2026-10-19

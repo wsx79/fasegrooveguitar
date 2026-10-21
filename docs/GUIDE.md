@@ -4,7 +4,7 @@
 
 This guide covers [v0.5.0](https://github.com/wsx79/fasegrooveguitar/releases/tag/v0.5.0). The existing controls and their positions are retained; shared buttons, menus and colours have a common style.
 
-**Arranger presets:** the style menu now includes thirteen `Arranger: …` entries coordinated with Fase Groove Arranger 0.4.7. Choose the same genre in Piano, Drums and Guitar and use LINK for key, tempo and transport. Jackin follows the requested funky/disco direction (Da Funk Junkies), with chopped hooks, articulated bass and percussive guitar. Earlier presets remain available and saved projects retain their settings; DAW levels and effects still contribute to the final mix.
+**Arranger presets:** the style menu now includes thirteen `Arranger: …` entries coordinated with Fase Groove Arranger 0.4.7. Choose the same genre in Piano, Drums and Guitar and use LINK for key, tempo and transport. Jackin follows the requested funky/disco direction, with chopped hooks, articulated bass and percussive guitar. Earlier presets remain available and saved projects retain their settings; DAW levels and effects still contribute to the final mix.
 
 ## 1. Installation
 

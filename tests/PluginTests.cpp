@@ -897,7 +897,9 @@ namespace {
     void testFamilyPresets(){
         FaseGrooveGuitarProcessor p;const int first=p.styleNames().size()-fgfamily::numGenres;
         for(int genre=0;genre<fgfamily::numGenres;++genre){
+            std::printf("Family genre %d: apply\n",genre);std::fflush(stdout);
             p.applyStyle(first+genre);const auto& a=fgfamily::sound(genre);
+            std::printf("Family genre %d: render\n",genre);std::fflush(stdout);
             const auto settings=p.currentSettings();
             CHECK(settings.randomGenre==genre);
             CHECK(juce::roundToInt(value(p,ParamIDs::kit))==a.guitar);
