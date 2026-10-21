@@ -274,9 +274,10 @@ namespace
         }
 
         // Total random always ends on something that plays.
-        for (int i = 0; i < 10; ++i)
+        for (int i = 0; i < 64; ++i)
         {
             p.totalRandom();
+            CHECK (juce::isPositiveAndBelow (p.currentSettings().randomGenre, fgfamily::numGenres));
             CHECK (countNoteOns (p.createMidiClip (4, FaseGrooveGuitarProcessor::ClipPart::all)) > 0);
         }
         p.resetToDefaults();
