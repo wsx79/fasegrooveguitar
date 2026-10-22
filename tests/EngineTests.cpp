@@ -566,6 +566,103 @@ static void testSwingAndHumanize()
     CHECK (differs);
 }
 
+static bool barsDiffer (const GuitarPattern& p)
+{
+    for (const auto& line : p.lanes)
+        if (line.size() >= 32 && line.compare (0, 16, line, 16, 16) != 0)
+            return true;
+    return false;
+}
+
+static void testStyleCoherence()
+{
+    CHECK (std::string (genreProgressionCategory (8)) == "Jackin' & funky");
+    CHECK (std::string (genreProgressionCategory (12)) == "Dance stabs");
+    int danceProg = 0;
+    for (const auto& progression : progressions())
+        if (std::string (progression.category) == "Dance stabs")
+        {
+            ++danceProg;
+            CHECK (std::string (progression.name).find ("Anthem") == std::string::npos);
+        }
+    CHECK (danceProg >= 3);
+
+    for (std::uint32_t seed = 1; seed < 24; ++seed)
+    {
+        const auto funk = makeRandomPattern (seed, 0.85f, 8);
+        CHECK (barsDiffer (funk));
+        for (size_t i = 0; i < funk[Lane::strumDown].size(); ++i)
+            if (isHit (funk[Lane::strumDown][i]))
+                CHECK (i % 2 == 0);
+        for (size_t i = 0; i < funk[Lane::strumUp].size(); ++i)
+            if (isHit (funk[Lane::strumUp][i]))
+                CHECK (i % 2 == 1);
+        const auto gospel = makeRandomPattern (seed, 0.7f, 3);
+        CHECK (barsDiffer (gospel));
+        for (const auto& line : gospel.lanes)
+            for (size_t i = 0; i < line.size(); ++i)
+                if (isHit (line[i]))
+                    CHECK (i % 2 == 0);
+
+        const auto dance = makeRandomPattern (seed, 0.8f, 12);
+        CHECK (barsDiffer (dance));
+        CHECK (countHits (dance[Lane::lick]) == 0);
+        CHECK (countHits (dance[Lane::scratch]) == 0);
+        for (size_t i = 0; i < dance[Lane::power].size(); ++i)
+            if (isHit (dance[Lane::power][i]))
+                CHECK (i % 4 == 0);
+        const auto varied = makeSectionVariation (dance, seed + 9);
+        CHECK (countHits (varied[Lane::lick]) == 0);
+        CHECK (countHits (varied[Lane::scratch]) == 0);
+        for (const auto& line : varied.lanes)
+            for (size_t i = 0; i < line.size(); ++i)
+                if (isHit (line[i]))
+                    CHECK (i % 2 == 0);
+
+        const auto afro = makeRandomPattern (seed, 0.75f, 7);
+        CHECK (barsDiffer (afro));
+        CHECK (countHits (afro[Lane::arp]) + countHits (afro[Lane::chank]) > 0);
+    }
+
+    const auto gospel = makeRandomPattern (4, 0.6f, 3);
+    const auto section = makeSectionVariation (gospel, 11);
+    for (const auto& line : section.lanes)
+        for (size_t i = 0; i < line.size(); ++i)
+            if (isHit (line[i]))
+                CHECK (i % 2 == 0);
+
+    const auto dom9 = tonesOf ({ 0, (int) ChordType::dom9 });
+    const auto funkShape = voiceChord (dom9, nullptr, false, GuitarColour::funkGrip);
+    const auto shell = voiceChord (dom9, nullptr, false, GuitarColour::shell);
+    const auto triad = voiceChord (dom9, nullptr, false, GuitarColour::triad);
+    CHECK (funkShape.full.size() >= 2 && funkShape.full.size() <= 3);
+    CHECK (shell.full.size() >= 3 && shell.full.size() <= 4);
+    CHECK (triad.full.size() >= 3 && triad.full.size() <= 4);
+    for (int note : triad.full)
+    {
+        const int interval = ((note - dom9.root) % 12 + 12) % 12;
+        CHECK (interval != 10 && interval != 11 && interval != 2);
+    }
+    NoteList classicLick, funkLick;
+    const auto classic = voiceChord (dom9);
+    laneNotes (Lane::lick, dom9, classic, 4, 0, classicLick);
+    laneNotes (Lane::lick, dom9, classic, 4, 0, funkLick, false, false, 2);
+    CHECK (classicLick.size() == 1 && funkLick.size() == 1 && classicLick[0] != funkLick[0]);
+
+    const auto intro = applySection (guitarPatterns()[0], Section::intro);
+    CHECK (countHits (intro[Lane::strumDown]) == 0);
+    bool foundGospel = false;
+    for (const auto& preset : guitarPatterns())
+        if (preset.category == "Gospel" && countHits (preset[Lane::strumDown]) > 0)
+        {
+            foundGospel = true;
+            const auto gospelIntro = applySection (preset, Section::intro);
+            CHECK (countHits (gospelIntro[Lane::strumDown]) + countHits (gospelIntro[Lane::strumUp]) > 0);
+            CHECK (countHits (applySection (preset, Section::buildup)[Lane::scratch]) == 0);
+        }
+    CHECK (foundGospel);
+}
+
 static void testRandomGrooves()
 {
     for (int genre = 0; genre < 13; ++genre)
@@ -908,6 +1005,7 @@ int main()
     testStrumsAndChords();
     testOneGuitar();
     testSwingAndHumanize();
+    testStyleCoherence();
     testRandomGrooves();
     testSections();
     testFillsAndVariations();

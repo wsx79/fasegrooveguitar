@@ -862,7 +862,9 @@ void FaseGrooveGuitarProcessor::randomizeChords()
         if (juce::String (list[(size_t) i].category) == fgg::genreProgressionCategory (genre))
             fits.add (i);
     const int current = juce::roundToInt (raw (ParamIDs::progression));
-    int pick = ! fits.isEmpty() && r.nextInt (3) != 0 ? fits[r.nextInt (fits.size())] : r.nextInt ((int) list.size());
+    // Funky and dance stabs stay inside their list: a throw must not land on an Italo or pop anthem.
+    const bool strict = genre == 8 || genre == 12;
+    int pick = ! fits.isEmpty() && (strict || r.nextInt (3) != 0) ? fits[r.nextInt (fits.size())] : r.nextInt ((int) list.size());
     if (pick == current)
         pick = (pick + 1 + r.nextInt ((int) list.size() - 1)) % (int) list.size();
     applyProgression (pick);
