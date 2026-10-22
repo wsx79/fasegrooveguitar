@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <array>
 #include <map>
 #include <set>
 #include <string>
@@ -663,6 +664,114 @@ static void testStyleCoherence()
     CHECK (foundGospel);
 }
 
+static int maxOnVelocity (const std::vector<NoteEvent>& events)
+{
+    int m = 0;
+    for (const auto& e : events)
+        if (e.isNoteOn())
+            m = std::max (m, e.velocity);
+    return m;
+}
+
+static bool hasSymbol (const GuitarPattern& p, char symbol, int lane = -1)
+{
+    for (int l = 0; l < numLanes; ++l)
+    {
+        if (lane >= 0 && l != lane)
+            continue;
+        if (p.lanes[(size_t) l].find (symbol) != std::string::npos)
+            return true;
+    }
+    return false;
+}
+
+/** Patterns that used to render as a whisper: no accent, only weak 16ths, then the accent
+    curve and the velocity floor. Ghosts stay quieter than the accent. */
+static void testGeneratedAudibility()
+{
+    auto base = []
+    {
+        GuitarSettings s;
+        s.pattern = randomPatternIndex();
+        s.humanize = 0.3f;
+        s.accentGroove = 0.85f;
+        s.velocity = 100;
+        s.roomForBand = true;
+        s.fillEveryBars = 0;
+        s.variationEvery = 0;
+        s.strumAfterFill = false;
+        return s;
+    };
+
+    for (int genre = 0; genre < 13; ++genre)
+        for (float density : { 0.0f, 0.22f, 0.35f, 0.5f, 0.68f, 1.0f })
+            for (std::uint32_t seed = 1; seed <= 60; ++seed)
+            {
+                const auto pattern = makeRandomPattern (seed, density, genre);
+                CHECK (hasSymbol (pattern, 'X'));
+                bool speaking = false;
+                for (int l = 0; l < numLanes; ++l)
+                    if (l != (int) Lane::scratch && hasSymbol (pattern, 'X', l))
+                        speaking = true;
+                CHECK (speaking);
+
+                auto s = base();
+                s.riffSeed = seed;
+                s.density = density;
+                s.randomGenre = genre;
+                s.swing = genreSwing (genre);
+                const auto events = GrooveEngine::renderClip (s, 8.0);
+                CHECK (countOns (events) > 0);
+                CHECK (maxOnVelocity (events) >= 74);
+            }
+
+    // The grooves a player reported as silent (piano house, jackin', density at the floor).
+    for (const auto& bad : { std::array<double, 3> { 0, 57, 0.0 }, { 4, 14, 0.0 }, { 4, 14, 0.35 }, { 4, 14, 1.0 } })
+    {
+        auto s = base();
+        s.randomGenre = (int) bad[0];
+        s.riffSeed = (std::uint32_t) bad[1];
+        s.density = (float) bad[2];
+        CHECK (maxOnVelocity (GrooveEngine::renderClip (s, 8.0)) >= 84);
+    }
+
+    // Funk / jackin' intros used to keep only a ghost scratch.
+    for (int genre : { 4, 5, 8 })
+        for (std::uint32_t seed = 1; seed <= 24; ++seed)
+        {
+            auto s = base();
+            s.riffSeed = seed;
+            s.density = 0.35f;
+            s.randomGenre = genre;
+            s.section = Section::intro;
+            CHECK (maxOnVelocity (GrooveEngine::renderClip (s, 8.0)) >= 68);
+        }
+
+    // Accents stay accents: a written accent is louder than a weak 16th, and a ghost is quieter still.
+    {
+        auto s = only ({ { Lane::chank, "X.x. .x.x X.x. .x.x" }, { Lane::scratch, "g... g... g... g..." } });
+        s.accentGroove = 0.85f;
+        s.velocity = 100;
+        s.humanize = 0.0f;
+        int accent = 0, weak = 127, ghost = 127;
+        for (const auto& e : GrooveEngine::renderClip (s, 4.0))
+        {
+            if (! e.isNoteOn())
+                continue;
+            const int step = (int) std::llround (e.ppq / stepLength);
+            if (e.lane == (int) Lane::scratch)
+                ghost = std::min (ghost, e.velocity);
+            else if (step % 4 == 0)
+                accent = std::max (accent, e.velocity);
+            else if (step % 4 == 1)
+                weak = std::min (weak, e.velocity);
+        }
+        CHECK (accent >= 85);
+        CHECK (weak <= accent - 8);
+        CHECK (ghost <= weak - 8);
+    }
+}
+
 static void testRandomGrooves()
 {
     for (int genre = 0; genre < 13; ++genre)
@@ -1006,6 +1115,7 @@ int main()
     testOneGuitar();
     testSwingAndHumanize();
     testStyleCoherence();
+    testGeneratedAudibility();
     testRandomGrooves();
     testSections();
     testFillsAndVariations();
