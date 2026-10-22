@@ -4,6 +4,14 @@
 
 Tutte le modifiche importanti di **Fase Groove Guitar**.
 
+## [0.6.0] - 2026-10-22
+
+- Corretto: "Sempre" nel menu Chance della griglia veniva letto come un roll: la probabilità restava e il roll si azzerava.
+- Corretto: "Lo stesso accordo di..." non faceva nulla sulle battute 5–8.
+- Corretto: una modifica su un pattern da 2 battute cambiava solo la prima metà; passando a 4 battute suonava una seconda metà vecchia (simbolo, velocity, chance e roll).
+- Corretto: uno slide sul primo tempo metteva l'abbellimento prima dell'inizio, quindi non suonava.
+- Corretto: l'umanizzazione riscriveva ogni stab, slide e chank sull'ultima battuta della frase. Ora lo fa solo ogni tanto, e più spesso se l'umanizzazione è alta.
+
 ## [0.5.0] - 2026-10-20
 
 - Tredici preset aggiuntivi `Arranger:`: palette, articolazioni e bilanciamenti coordinati con Fase Groove Arranger 0.4.7, incluso il nuovo Jackin nella direzione funky/disco.

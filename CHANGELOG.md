@@ -4,6 +4,14 @@
 
 All notable changes to **Fase Groove Guitar**.
 
+## [0.6.0] - 2026-10-22
+
+- Fixed: "Always" in the grid's Chance menu was read as a roll, so the chance stayed put and the roll was cleared.
+- Fixed: "The same chord as..." did nothing for bars 5–8.
+- Fixed: an edit on a 2-bar pattern changed only the first half; switching to 4 bars played a stale second half (symbol, velocity, chance and roll).
+- Fixed: a slide on beat 1 put its grace note before the start, so it never sounded.
+- Fixed: humanize revoiced every stab, slide and chank on the last bar of a phrase. It now does so only now and then, and more often as humanize rises.
+
 ## [0.5.0] - 2026-10-20
 
 - Thirteen additional `Arranger:` presets coordinate palettes, articulation and balance with Fase Groove Arranger 0.4.7, including the updated Jackin in the funky/disco direction.
