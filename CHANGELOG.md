@@ -4,6 +4,11 @@
 
 All notable changes to **Fase Groove Guitar**.
 
+## [0.9.0] - 2026-10-22
+
+- Random grooves stay in the selected genre: funk and jackin' on 16th chank and scratch, house and '90s on offbeat stabs, garage on 2-step skips, deep and soulful on sparse extended chords, afro on picked clave, neo-soul and chill on laid-back voicings with a lick, dance on short stabs, gospel on 8th strums.
+- A new seed changes the groove, and bar 2 is its own bar rather than a copy of bar 1.
+
 ## [0.8.0] - 2026-10-22
 
 - Fixed: some generated grooves were silent. A pattern of only weak 16ths on an up-strum, chank or scratch fell to about MIDI 60, and the guide guitar (velocity squared) made that nothing. Every generated bar now keeps a speaking accent. Ghosts stay quieter than the beat, and the offbeat stays the loudest 16th.

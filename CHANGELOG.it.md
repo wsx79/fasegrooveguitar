@@ -4,6 +4,11 @@
 
 Tutte le modifiche importanti di **Fase Groove Guitar**.
 
+## [0.9.0] - 2026-10-22
+
+- I groove casuali restano nel genere scelto: funk e jackin' su chank e scratch in sedicesimi, house e anni '90 su stab in levare, garage su pause da 2-step, deep e soulful su accordi estesi radi, afro su clave pennato, neo-soul e chill su voicing rilassati con lick, dance su stab corti, gospel su pennate in ottavi.
+- Un seed nuovo cambia il groove, e la seconda battuta è una battuta sua, non la copia della prima.
+
 ## [0.8.0] - 2026-10-22
 
 - Corretto: alcuni groove generati non si sentivano. Un pattern di soli sedicesimi deboli su pennata in su, chank o scratch scendeva verso MIDI 60, e la chitarra guida (velocity al quadrato) lo azzerava. Ogni battuta generata tiene ora un accento udibile. I ghost restano più piani del beat, e il controtempo resta il sedicesimo più forte.
