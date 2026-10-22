@@ -4,6 +4,14 @@
 
 All notable changes to **Fase Groove Guitar**.
 
+## [0.7.0] - 2026-10-22
+
+- Random grooves follow the genre: funk stays on alternate 16ths, gospel on 8ths, afro on tumbao and partido alto, neo-soul and pads stay sparse, dance power sits on the downbeats. Bar 2 answers bar 1.
+- Turnarounds and section variations keep that grid, and do not add a lick or a scratch to a genre that does not play one.
+- Funky chord dice stay in the funk progressions. Dance stabs have their own minor power vamps.
+- A random groove is voiced in the style (shells and drop-2 for gospel and neo-soul, triads for house and dance, small grips for funk). The lick phrase follows the style. Preset grooves keep their voicing.
+- Intros, build-ups and mix fills follow the genre: funk keeps the scratch, gospel a soft strum, dance the power chords, pads the swell.
+
 ## [0.6.0] - 2026-10-22
 
 - Fixed: "Always" in the grid's Chance menu was read as a roll, so the chance stayed put and the roll was cleared.

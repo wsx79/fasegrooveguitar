@@ -4,6 +4,14 @@
 
 Tutte le modifiche importanti di **Fase Groove Guitar**.
 
+## [0.7.0] - 2026-10-22
+
+- I groove casuali seguono il genere: funk in sedicesimi alternati, gospel in ottavi, afro su tumbao e partido alto, neo-soul e pad radi, power dance sui tempi forti. La seconda battuta risponde alla prima.
+- Variazioni e turnaround restano sulla stessa griglia e non aggiungono lick o scratch a un genere che non li usa.
+- I dadi degli accordi funky restano sui giri funk. I dance stabs hanno i propri vamp minori da power chord.
+- Un groove casuale è diteggiato nello stile (shell e drop-2 per gospel e neo-soul, triadi per house e dance, prese piccole per il funk). La frase del lick segue lo stile. I groove preset tengono la diteggiatura di prima.
+- Intro, build-up e fill mix seguono il genere: il funk tiene lo scratch, il gospel una pennata morbida, il dance i power chord, i pad lo swell.
+
 ## [0.6.0] - 2026-10-22
 
 - Corretto: "Sempre" nel menu Chance della griglia veniva letto come un roll: la probabilità restava e il roll si azzerava.
