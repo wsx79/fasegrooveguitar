@@ -639,16 +639,16 @@ void GuitarGrid::showCellMenu (int lane, int step)
     juce::Component::SafePointer<GuitarGrid> safe (this);
     menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this).withMousePosition(), [safe, lane, step] (int result)
     {
-        static const char symbols[] { 'X', 'x', 'g', 'f', '.' };
         if (safe == nullptr || result < 1)
             return;
         auto& p = safe->processor;
-        if (result <= 5)
-            p.editStep (lane, step, symbols[result - 1]);
-        else if (result == 6 || result == 7)
+        const auto choice = stepMenuChoice (result);
+        if (choice.kind == StepMenuChoice::Kind::symbol)
+            p.editStep (lane, step, (char) choice.value);
+        else if (choice.kind == StepMenuChoice::Kind::moveLeft || choice.kind == StepMenuChoice::Kind::moveRight)
         {
             // The hit moves one 16th, with its velocity, chance and roll.
-            const int to = (step + (result == 6 ? -1 : 1) + p.steps()) % p.steps();
+            const int to = (step + (choice.kind == StepMenuChoice::Kind::moveLeft ? -1 : 1) + p.steps()) % p.steps();
             const char symbol = p.stepSymbol (lane, step);
             const int velocity = p.stepVelocity (lane, step), chance = p.stepChance (lane, step), roll = p.stepRoll (lane, step);
             p.editStep (lane, step, '.');
@@ -657,10 +657,10 @@ void GuitarGrid::showCellMenu (int lane, int step)
             p.setStepChance (lane, to, chance);
             p.setStepRoll (lane, to, roll);
         }
-        else if (result >= 200)
-            safe->processor.setStepRoll (lane, step, result - 200);
-        else if (result >= 100)
-            safe->processor.setStepChance (lane, step, result - 100);
+        else if (choice.kind == StepMenuChoice::Kind::roll)
+            p.setStepRoll (lane, step, choice.value);
+        else if (choice.kind == StepMenuChoice::Kind::chance)
+            p.setStepChance (lane, step, choice.value);
         safe->refresh();
     });
 }
@@ -2521,7 +2521,7 @@ void ChordPanel::showSlotMenu (int slot)
         auto& p = safe->processor;
         if (result >= 100 && result < 112)      p.setChord (slot, { result - 100, chord.type });
         else if (result >= 200 && result < 300) p.setChord (slot, { chord.root, result - 200 });
-        else if (result >= 300 && result < 304) p.setChord (slot, p.chordAt (result - 300));
+        else if (const int from = chordMenuCopySlot (result); from >= 0) p.setChord (slot, p.chordAt (from));
         else if (result == 400)
             for (int i = 0; i < fgg::maxChords; ++i)
                 p.setChord (i, chord);

@@ -436,6 +436,18 @@ void FaseGrooveGuitarProcessor::editStep (int lane, int step, char symbol)
         userVelocity[(size_t) lane][(size_t) at] = 0;
         resetStepExtras (lane, at);
     }
+    mirrorUserHalf (lane, at);
+}
+
+void FaseGrooveGuitarProcessor::mirrorUserHalf (int lane, int index)
+{
+    if (steps() != 32 || ! juce::isPositiveAndBelow (lane, fgg::numLanes) || index < 0 || index >= 32)
+        return;
+    const int to = index + 32;
+    userGrid[(size_t) lane][(size_t) to] = userGrid[(size_t) lane][(size_t) index].load();
+    userVelocity[(size_t) lane][(size_t) to] = userVelocity[(size_t) lane][(size_t) index].load();
+    userChance[(size_t) lane][(size_t) to] = userChance[(size_t) lane][(size_t) index].load();
+    userRoll[(size_t) lane][(size_t) to] = userRoll[(size_t) lane][(size_t) index].load();
 }
 
 void FaseGrooveGuitarProcessor::clearLane (int lane)
@@ -478,6 +490,7 @@ void FaseGrooveGuitarProcessor::randomizeSegment (int part)
             userGrid[(size_t) l][(size_t) i] = fresh.lanes[(size_t) l][(size_t) i];
             userVelocity[(size_t) l][(size_t) i] = 0;
             resetStepExtras (l, i);
+            mirrorUserHalf (l, i);
         }
 }
 
@@ -495,6 +508,7 @@ void FaseGrooveGuitarProcessor::randomizeLane (int lane)
             userGrid[(size_t) lane][(size_t) i] = line[(size_t) (i % (int) line.size())];
             userVelocity[(size_t) lane][(size_t) i] = 0;
             resetStepExtras (lane, i);
+            mirrorUserHalf (lane, i);
         }
 }
 
@@ -511,7 +525,9 @@ void FaseGrooveGuitarProcessor::setStepVelocity (int lane, int step, int level)
     if (! juce::isPositiveAndBelow (lane, fgg::numLanes) || ! juce::isPositiveAndBelow (step, steps()))
         return;
     makeUserPattern();
-    userVelocity[(size_t) lane][(size_t) baseStep (step)] = juce::jlimit (0, 127, level);
+    const int at = baseStep (step);
+    userVelocity[(size_t) lane][(size_t) at] = juce::jlimit (0, 127, level);
+    mirrorUserHalf (lane, at);
 }
 
 void FaseGrooveGuitarProcessor::resetStepVelocities (int lane)
@@ -545,7 +561,9 @@ void FaseGrooveGuitarProcessor::setStepChance (int lane, int step, int percent)
     if (! juce::isPositiveAndBelow (lane, fgg::numLanes) || ! juce::isPositiveAndBelow (step, steps()))
         return;
     makeUserPattern();
-    userChance[(size_t) lane][(size_t) baseStep (step)] = percent >= 100 ? 0 : juce::jlimit (1, 99, percent);
+    const int at = baseStep (step);
+    userChance[(size_t) lane][(size_t) at] = percent >= 100 ? 0 : juce::jlimit (1, 99, percent);
+    mirrorUserHalf (lane, at);
 }
 
 int FaseGrooveGuitarProcessor::stepRoll (int lane, int step) const
@@ -561,7 +579,9 @@ void FaseGrooveGuitarProcessor::setStepRoll (int lane, int step, int hits)
     if (! juce::isPositiveAndBelow (lane, fgg::numLanes) || ! juce::isPositiveAndBelow (step, steps()))
         return;
     makeUserPattern();
-    userRoll[(size_t) lane][(size_t) baseStep (step)] = hits <= 1 ? 0 : juce::jmin (4, hits);
+    const int at = baseStep (step);
+    userRoll[(size_t) lane][(size_t) at] = hits <= 1 ? 0 : juce::jmin (4, hits);
+    mirrorUserHalf (lane, at);
 }
 
 char FaseGrooveGuitarProcessor::customFillSymbol (int lane, int step) const

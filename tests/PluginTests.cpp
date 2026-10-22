@@ -221,6 +221,23 @@ namespace
         CHECK (p.stepRoll ((int) fgg::Lane::lick, 5) == 3);
         p.setStepChance ((int) fgg::Lane::lick, 5, 50);
         CHECK (p.stepChance ((int) fgg::Lane::lick, 5) == 50);
+        // A 2-bar edit is repeated in the stored second half, so 4 bars play the same groove.
+        p.setParameterFromUI (ParamIDs::partLength, 1.0f);
+        CHECK (p.steps() == 64);
+        CHECK (p.stepSymbol ((int) fgg::Lane::lick, 37) == p.stepSymbol ((int) fgg::Lane::lick, 5));
+        CHECK (p.stepVelocity ((int) fgg::Lane::lick, 37) == 90);
+        CHECK (p.stepRoll ((int) fgg::Lane::lick, 37) == 3);
+        CHECK (p.stepChance ((int) fgg::Lane::lick, 37) == 50);
+        p.setParameterFromUI (ParamIDs::partLength, 0.0f);
+
+        // Chance "Always" is menu id 200; that used to be read as a roll and clear the roll.
+        const auto always = stepMenuChoice (200);
+        CHECK (always.kind == StepMenuChoice::Kind::chance && always.value == 100);
+        const auto roll = stepMenuChoice (203);
+        CHECK (roll.kind == StepMenuChoice::Kind::roll && roll.value == 3);
+        CHECK (chordMenuCopySlot (303) == 3);
+        CHECK (chordMenuCopySlot (307) == 7);
+        CHECK (chordMenuCopySlot (308) == -1);
         p.clearGrid();
         CHECK (p.stepSymbol ((int) fgg::Lane::lick, 5) == '.');
     }

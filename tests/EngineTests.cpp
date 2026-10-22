@@ -812,6 +812,60 @@ static void testSlowRakeAcrossBlocks()
     }
 }
 
+static void testSlideOnDownbeatAndAnswer()
+{
+    // A slide on step 0 used to place its grace note before the clip, and the note was dropped.
+    {
+        auto s = only ({ { Lane::slide, "X... .... .... ...." } });
+        s.strumMs = 0.0f;
+        s.humanize = 0.0f;
+        const auto shape = laneNotes (Lane::slide, GrooveEngine::chordAt (s, 0), 0);
+        const auto events = GrooveEngine::renderClip (s, 1.0);
+        CHECK (wellFormed (events));
+        std::set<int> on;
+        for (const auto& e : events)
+            if (e.isNoteOn() && e.lane == (int) Lane::slide)
+                on.insert (e.note);
+        for (int n : shape)
+            CHECK (on.count (n) == 1 && on.count (n - 1) == 1);
+    }
+
+    // Humanize answers with the other top note only now and then, not on every hit of bar 4.
+    {
+        NoteList plain, alt;
+        int root = 0, type = 0;
+        for (int r = 0; r < 12 && plain == alt; ++r)
+            for (int t = 0; t < numChordTypes && plain == alt; ++t)
+            {
+                const auto v = voiceChord (tonesOf ({ r, t }));
+                plain = v.stab;
+                alt = v.stabAlt;
+                root = r;
+                type = t;
+            }
+        CHECK (plain.back() != alt.back());
+        auto s = only ({ { Lane::stab, "X... X... X... X..." } });
+        s.chords[0] = { root, type };
+        s.numChords = 1;
+        s.humanize = 1.0f;
+        s.pushChanges = false;
+        s.fillEveryBars = 0;
+        s.variationEvery = 0;
+        std::map<long long, int> top;
+        for (const auto& e : GrooveEngine::renderClip (s, 16.0))
+            if (e.isNoteOn() && e.lane == (int) Lane::stab)
+            {
+                const auto step = (long long) std::llround (e.ppq / stepLength);
+                if (step >= 48 && step < 64)
+                    top[step] = std::max (top.count (step) != 0 ? top[step] : 0, e.note);
+            }
+        int original = 0, answered = 0;
+        for (const auto& [step, note] : top)
+            (note == alt.back() ? answered : original) += note == plain.back() || note == alt.back() ? 1 : 0;
+        CHECK (original > 0 && answered > 0);
+    }
+}
+
 static void testEarlyTemplateHitsAcrossBlocks()
 {
     GuitarSettings s;
@@ -842,6 +896,7 @@ static void testEarlyTemplateHitsAcrossBlocks()
 
 int main()
 {
+    testSlideOnDownbeatAndAnswer();
     testEarlyTemplateHitsAcrossBlocks();
     testSlowRakeAcrossBlocks();
     testPresets();

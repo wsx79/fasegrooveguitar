@@ -13,6 +13,36 @@
 #include <atomic>
 #include <functional>
 
+/** What a grid-cell menu id does. Chance "Always" is id 200; rolls start at 201. */
+struct StepMenuChoice
+{
+    enum class Kind { none, symbol, moveLeft, moveRight, chance, roll };
+    Kind kind = Kind::none;
+    int value = 0;   // symbol as a char, or a chance percent, or a roll count
+};
+
+inline StepMenuChoice stepMenuChoice (int result) noexcept
+{
+    static constexpr char symbols[] { 'X', 'x', 'g', 'f', '.' };
+    if (result >= 1 && result <= 5)
+        return { StepMenuChoice::Kind::symbol, (int) symbols[result - 1] };
+    if (result == 6)
+        return { StepMenuChoice::Kind::moveLeft, 0 };
+    if (result == 7)
+        return { StepMenuChoice::Kind::moveRight, 0 };
+    if (result >= 201 && result <= 204)
+        return { StepMenuChoice::Kind::roll, result - 200 };
+    if (result >= 100 && result <= 200)
+        return { StepMenuChoice::Kind::chance, result - 100 };
+    return {};
+}
+
+/** Source chord slot of "the same chord as bar N", or -1. Slots run to maxChords, not four. */
+inline int chordMenuCopySlot (int result) noexcept
+{
+    return result >= 300 && result < 300 + fgg::maxChords ? result - 300 : -1;
+}
+
 namespace ParamIDs
 {
     inline constexpr const char* pattern     = "pattern";
@@ -321,6 +351,8 @@ public:
 private:
     void setUserPattern (const fgg::GuitarPattern&);
     void resetStepExtras (int lane, int index) { userChance[(size_t) lane][(size_t) index] = 0; userRoll[(size_t) lane][(size_t) index] = 0; }
+    /** A 2-bar groove is stored twice, so the 4-bar view repeats the bars just edited. */
+    void mirrorUserHalf (int lane, int index);
     struct LoopAnalysis;
     std::unique_ptr<LoopAnalysis> analyseLoop (const juce::File&) const;
     void transposeChords (int semitones);

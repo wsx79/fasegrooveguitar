@@ -494,8 +494,10 @@ void GrooveEngine::collectStep (long long step, const GuitarSettings& s, const G
         // A chord hit on the last 8th of a bar plays the chord coming next (the push).
         const bool push = s.pushChanges && chordHit && stepInBar >= 14 && symbol != 'g' && ! (nextChord == chord);
         // Now and then (with Humanize) the last bar of the phrase answers with another top note.
+        // The chance follows Humanize; a step keeps its choice for the whole phrase.
         const bool answer = human > 0.0 && phraseBar == 3
-                         && (lane == (int) Lane::stab || lane == (int) Lane::slide || lane == (int) Lane::chank);
+                         && (lane == (int) Lane::stab || lane == (int) Lane::slide || lane == (int) Lane::chank)
+                         && lifeNoise (lane, 1) < 0.55 * human;
         NoteList notes;
         laneNotes ((Lane) lane, push ? nextChord : chord, push ? nextVoicing : voicing, stepInBar, s.octaves[(size_t) lane],
                    notes, s.roomForBand, answer);
@@ -557,7 +559,10 @@ void GrooveEngine::collectStep (long long step, const GuitarSettings& s, const G
             const double overlap = 20.0 * beatsPerMs;
             for (int i = 0; i < notes.size(); ++i)
             {
-                pending.push_back ({ t - 0.09 + gap * (double) i, notes[i] - 1, velocityFor (lane, 0.6 * level, salt + 5), 0.09 + overlap, lane, i == 0 });
+                // A slide on the downbeat used to start before the clip and get dropped.
+                const double target = t + gap * (double) i;
+                const double start = step >= 0 ? std::max (0.0, target - 0.09) : target - 0.09;
+                pending.push_back ({ start, notes[i] - 1, velocityFor (lane, 0.6 * level, salt + 5), target - start + overlap, lane, i == 0 });
                 pending.back().articulation = articulation;
                 pending.back().grace = true;
             }
