@@ -4,6 +4,11 @@
 
 All notable changes to **Fase Groove Guitar**.
 
+## [0.8.0] - 2026-10-22
+
+- Fixed: some generated grooves were silent. A pattern of only weak 16ths on an up-strum, chank or scratch fell to about MIDI 60, and the guide guitar (velocity squared) made that nothing. Every generated bar now keeps a speaking accent. Ghosts stay quieter than the beat, and the offbeat stays the loudest 16th.
+- A funk, jackin' or jackin' piano intro that was only a ghost scratch now has one chank on the "&".
+
 ## [0.7.0] - 2026-10-22
 
 - Random grooves follow the genre: funk stays on alternate 16ths, gospel on 8ths, afro on tumbao and partido alto, neo-soul and pads stay sparse, dance power sits on the downbeats. Bar 2 answers bar 1.
