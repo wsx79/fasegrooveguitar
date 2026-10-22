@@ -772,6 +772,158 @@ static void testGeneratedAudibility()
     }
 }
 
+/** Real NEW GROOVE path (makeRandomPattern + render) and the section regenerate, per genre. */
+static void testGenreIdentity()
+{
+    auto barOf = [] (const GuitarPattern& p, int bar)
+    {
+        std::string s;
+        for (const auto& line : p.lanes)
+        {
+            s += line.size() >= (size_t) (bar * 16 + 16) ? line.substr ((size_t) bar * 16, 16) : line;
+            s += '|';
+        }
+        return s;
+    };
+    auto gridOf = [] (const GuitarPattern& p)
+    {
+        std::string s;
+        for (const auto& line : p.lanes) { s += line; s += '|'; }
+        return s;
+    };
+    auto hitsOn = [] (const std::string& line, int pred)
+    {
+        int n = 0;
+        for (int i = 0; i < (int) line.size(); ++i)
+            if (isHit (line[(size_t) i]) && (pred < 0 || i % 4 == pred))
+                ++n;
+        return n;
+    };
+
+    for (int genre = 0; genre < 13; ++genre)
+    {
+        const bool extended = [&]
+        {
+            const auto chords = progressionChords (genreProgression (genre), 0);
+            const auto voiced = voiceChord (tonesOf (chords[0]), nullptr, true, guitarColourFor (genre));
+            const auto& shape = voiced.stab.empty() ? voiced.full : voiced.stab;
+            for (int i = 0; i < shape.size(); ++i)
+            {
+                const int iv = ((shape[i] - chords[0].root) % 12 + 12) % 12;
+                if (iv == 1 || iv == 2 || iv == 6 || iv == 9 || iv == 10 || iv == 11)
+                    return true;
+            }
+            return false;
+        }();
+        if (genre == 1 || genre == 2 || genre == 3 || genre == 10 || genre == 11)
+            CHECK (extended);
+
+        for (float density : { genre == 8 ? 0.68f : genre == 4 ? 0.22f : 0.35f, 0.5f })
+        {
+            std::set<std::string> grids, bar1s, bar2s;
+            int differ = 0, regen = 0, faithful = 0;
+            for (std::uint32_t seed = 1; seed <= 20; ++seed)
+            {
+                const auto p = makeRandomPattern (seed, density, genre);
+                grids.insert (gridOf (p));
+                bar1s.insert (barOf (p, 0));
+                bar2s.insert (barOf (p, 1));
+                differ += barsDiffer (p) ? 1 : 0;
+                regen += gridOf (p) != gridOf (makeSectionVariation (p, seed * 97u + 11u)) ? 1 : 0;
+
+                const int stab = countHits (p[Lane::stab]);
+                const int stabOff = hitsOn (p[Lane::stab], 2);
+                const int odd = [&]
+                {
+                    int n = 0;
+                    for (const auto& line : p.lanes)
+                        for (size_t i = 0; i < line.size(); ++i)
+                            if (isHit (line[i]) && i % 2 == 1)
+                                ++n;
+                    return n;
+                }();
+                int total = 0;
+                for (const auto& line : p.lanes)
+                    total += countHits (line);
+                const bool accent = hasSymbol (p, 'X');
+                const bool skip = [&]
+                {
+                    std::string any (32, '.');
+                    for (int l = 0; l < numLanes; ++l)
+                        if (l != (int) Lane::scratch)
+                            for (int i = 0; i < 32 && i < (int) p.lanes[(size_t) l].size(); ++i)
+                                if (isHit (p.lanes[(size_t) l][(size_t) i]))
+                                    any[(size_t) i] = 'x';
+                    int gaps = 0;
+                    for (int bar = 0; bar < 2; ++bar)
+                    {
+                        int prev = -4;
+                        for (int i = 0; i < 16; ++i)
+                            if (any[(size_t) (bar * 16 + i)] != '.')
+                            {
+                                if (i - prev >= 3) ++gaps;
+                                prev = i;
+                            }
+                    }
+                    return gaps >= 2;
+                }();
+
+                bool ok = false;
+                switch (genre)
+                {
+                    case 0: case 5: case 9:   // house, jackin' piano, '90s: offbeat stabs
+                        ok = stab >= 3 && stabOff * 100 >= stab * 70 && countHits (p[Lane::power]) == 0;
+                        break;
+                    case 4: case 8:           // jackin', funk: 16th chank or scratch, with an accent
+                        ok = (countHits (p[Lane::chank]) > 0 || countHits (p[Lane::scratch]) > 0) && odd > 0 && accent;
+                        break;
+                    case 6:                   // garage: 2-step skips
+                        ok = skip && total <= 20;
+                        break;
+                    case 1: case 2:           // soulful, deep: sparse extended chords
+                        ok = total <= 18 && extended;
+                        break;
+                    case 7:                   // afro: picked / clave, not a straight chord stab
+                        ok = countHits (p[Lane::arp]) + countHits (p[Lane::chank]) > 0 && odd + hitsOn (p[Lane::arp], 2) + hitsOn (p[Lane::chank], 2) > 0;
+                        break;
+                    case 10: case 11:         // neo-soul, chill: laid-back, extended, a lick
+                        ok = countHits (p[Lane::lick]) > 0 && total <= 22 && extended;
+                        break;
+                    case 12:                  // dance: short stabs, no 16th scratch, no power chord
+                        ok = stab >= 3 && countHits (p[Lane::power]) == 0 && countHits (p[Lane::scratch]) == 0 && odd == 0;
+                        break;
+                    case 3:                   // gospel: 8th strums, shell voicing
+                        ok = odd == 0 && countHits (p[Lane::strumDown]) + countHits (p[Lane::strumUp]) >= 4
+                          && countHits (p[Lane::scratch]) == 0 && extended;
+                        break;
+                    default:
+                        ok = true;
+                        break;
+                }
+                faithful += ok ? 1 : 0;
+
+                GuitarSettings s;
+                s.pattern = randomPatternIndex();
+                s.riffSeed = seed;
+                s.density = density;
+                s.randomGenre = genre;
+                s.swing = genreSwing (genre);
+                s.fillEveryBars = 0;
+                s.variationEvery = 0;
+                s.humanize = 0.2f;
+                s.accentGroove = 0.85f;
+                CHECK (countOns (GrooveEngine::renderClip (s, 8.0)) > 0);
+            }
+            CHECK (differ == 20);
+            CHECK ((int) grids.size() >= 17);
+            CHECK ((int) bar1s.size() >= 16);
+            CHECK ((int) bar2s.size() >= 16);
+            CHECK (regen >= 17);
+            CHECK (faithful >= 16);
+        }
+    }
+}
+
 static void testRandomGrooves()
 {
     for (int genre = 0; genre < 13; ++genre)
@@ -1116,6 +1268,7 @@ int main()
     testSwingAndHumanize();
     testStyleCoherence();
     testGeneratedAudibility();
+    testGenreIdentity();
     testRandomGrooves();
     testSections();
     testFillsAndVariations();
