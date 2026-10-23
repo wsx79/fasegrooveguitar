@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <array>
 #include <map>
 #include <set>
@@ -1252,6 +1253,160 @@ static void testEarlyTemplateHitsAcrossBlocks()
                && std::abs (whole[i].ppq - small[i].ppq) < 1.0e-8);
 }
 
+/** The dice, measured on the MIDI it plays: for every genre and a few densities, many seeds must
+    give different rhythms, lane mixes, pitches and lengths (not only other velocities), no
+    groove may come back too often, the genre's rules hold on every throw, and the same seed
+    always plays the same notes. Diversity numbers are a floor, not a proof of taste: the
+    identity checks beside them keep the variation inside the style. */
+static void testDiceDiversity()
+{
+    struct Stats { int onsets = 0, lanes = 0, pitches = 0, lengths = 0, velocities = 0, maxRepeat = 0; };
+    auto settingsFor = [] (int genre, float density, std::uint32_t seed)
+    {
+        GuitarSettings s;
+        s.pattern = randomPatternIndex();
+        s.riffSeed = seed;
+        s.density = density;
+        s.randomGenre = genre;
+        s.swing = genreSwing (genre);
+        s.humanize = 0.0f;   // the groove itself, not the feel
+        s.fillEveryBars = 0;
+        s.variationEvery = 0;
+        s.strumAfterFill = false;
+        return s;
+    };
+    const int seeds = 40;
+    auto seedOf = [] (int k) { return (std::uint32_t) (1 + (k * 2477) % 99991); };   // spread like the dice
+
+    for (int genre = 0; genre < 13; ++genre)
+        for (float density : { 0.25f, 0.5f, 0.8f })
+        {
+            std::set<std::string> onsets, lanes, pitches, lengths, velocities;
+            std::map<std::string, int> repeats;
+            for (int k = 0; k < seeds; ++k)
+            {
+                const auto s = settingsFor (genre, density, seedOf (k));
+                const auto events = GrooveEngine::renderClip (s, 8.0);
+                CHECK (wellFormed (events));
+                const auto again = GrooveEngine::renderClip (s, 8.0);   // same seed, same notes
+                CHECK (std::equal (events.begin(), events.end(), again.begin(), again.end(), [] (const NoteEvent& a, const NoteEvent& b)
+                       { return a.ppq == b.ppq && a.note == b.note && a.velocity == b.velocity && a.lane == b.lane && a.controller == b.controller; }));
+
+                std::string on (32, '.'), laneMix (numLanes, '.'), pitch, length, velocity;
+                std::map<int, double> started;
+                for (const auto& e : events)
+                {
+                    if (e.isController() || e.lane == keyswitchLane)
+                        continue;
+                    const int step = std::clamp ((int) std::floor (e.ppq / stepLength + 1.0e-6), 0, 31);
+                    if (e.isNoteOn())
+                    {
+                        if (e.lane != (int) Lane::scratch)   // the rhythm of the chords, not the ghost scratch under them
+                            on[(size_t) step] = 'x';
+                        laneMix[(size_t) e.lane] = 'x';
+                        pitch += std::to_string (step) + ":" + std::to_string (e.note) + " ";
+                        velocity += std::to_string (e.velocity) + " ";
+                        started[e.note] = e.ppq;
+                    }
+                    else if (started.count (e.note) != 0)
+                    {
+                        length += std::to_string ((int) std::lround ((e.ppq - started[e.note]) / 0.0625)) + " ";
+                        started.erase (e.note);
+                    }
+                }
+                onsets.insert (on);
+                lanes.insert (laneMix);
+                pitches.insert (pitch);
+                lengths.insert (length);
+                velocities.insert (velocity);
+                ++repeats[on];
+            }
+            Stats st { (int) onsets.size(), (int) lanes.size(), (int) pitches.size(), (int) lengths.size(), (int) velocities.size(), 0 };
+            for (const auto& r : repeats)
+                st.maxRepeat = std::max (st.maxRepeat, r.second);
+            if (std::getenv ("FGG_DICE_REPORT") != nullptr)
+                std::printf ("dice %-18s d=%.2f onsets %2d lanes %2d pitch %2d length %2d vel %2d maxRepeat %d\n", grooveCategories()[(size_t) genre],
+                             (double) density, st.onsets, st.lanes, st.pitches, st.lengths, st.velocities, st.maxRepeat);
+
+            CHECK (st.onsets >= 32);       // the rhythm itself changes from throw to throw
+            CHECK (st.pitches >= 34);      // ...and what is played on it
+            CHECK (st.lengths >= 20);      // not only the velocities
+            CHECK (st.maxRepeat <= 3);     // no rhythm comes back again and again
+            CHECK (st.lanes >= 2);         // more than one way of playing the genre
+        }
+
+    // Genres with several roles really use them (the lanes, not just the hits, change).
+    for (int genre : { 1, 2, 4, 6, 7, 8, 10, 11 })
+    {
+        std::set<std::string> mixes;
+        for (int k = 0; k < seeds; ++k)
+        {
+            const auto p = makeRandomPattern (seedOf (k), 0.5f, genre);
+            std::string mix;
+            for (const auto& line : p.lanes)
+                mix += countHits (line) > 0 ? 'x' : '.';
+            mixes.insert (mix);
+        }
+        CHECK ((int) mixes.size() >= 5);
+    }
+
+    // Neighbouring seeds are not shifted copies of one another.
+    for (int genre = 0; genre < 13; ++genre)
+    {
+        int same = 0;
+        for (std::uint32_t seed = 1; seed <= 60; ++seed)
+            same += makeRandomPattern (seed, 0.5f, genre).lanes == makeRandomPattern (seed + 1, 0.5f, genre).lanes ? 1 : 0;
+        CHECK (same <= 1);
+    }
+
+    // Style identity over the whole population of throws.
+    auto ratio = [&] (int genre, auto&& count)
+    {
+        int yes = 0, all = 0;
+        for (int k = 0; k < seeds; ++k)
+        {
+            const auto p = makeRandomPattern (seedOf (k), 0.5f, genre);
+            count (p, yes, all);
+        }
+        return all > 0 ? (double) yes / (double) all : 0.0;
+    };
+    auto offbeatStabs = [] (const GuitarPattern& p, int& yes, int& all)
+    {
+        for (int i = 0; i < p.length(); ++i)
+            if (isHit (p[Lane::stab][(size_t) i]))
+            {
+                ++all;
+                yes += i % 4 == 2 ? 1 : 0;
+            }
+    };
+    for (int genre : { 0, 5, 9 })   // house piano styles: the stab lives on the "&"
+        CHECK (ratio (genre, offbeatStabs) >= 0.75);
+    CHECK (ratio (5, [] (const GuitarPattern& p, int& yes, int& all)   // jackin' piano bounces on the 16ths
+                  { ++all; for (int i = 0; i < p.length(); ++i) if (isHit (p[Lane::stab][(size_t) i]) && i % 4 == 3) { ++yes; break; } }) >= 0.4);
+    CHECK (ratio (8, [] (const GuitarPattern& p, int& yes, int& all)   // disco octaves are part of funky & disco
+                  { ++all; yes += countHits (p[Lane::octave]) > 0 ? 1 : 0; }) >= 0.08);
+    CHECK (ratio (3, [] (const GuitarPattern& p, int& yes, int& all)   // gospel answers with an 8th-note lick
+                  { ++all; yes += countHits (p[Lane::lick]) > 0 ? 1 : 0; }) >= 0.15);
+    for (int genre : { 3, 12 })   // gospel and dance stay on the 8ths
+        CHECK (ratio (genre, [] (const GuitarPattern& p, int& yes, int& all)
+                      { for (const auto& line : p.lanes) for (size_t i = 0; i < line.size(); ++i) if (isHit (line[i])) { ++all; yes += i % 2 == 0 ? 1 : 0; } }) == 1.0);
+
+    // The lane dice, the turnaround and a section's version: repeatable, and seeds differ.
+    for (int genre = 0; genre < 13; ++genre)
+    {
+        std::set<std::string> laneLines;
+        for (int k = 0; k < 20; ++k)
+        {
+            CHECK (makeRandomLane (Lane::stab, seedOf (k), 0.5f, genre) == makeRandomLane (Lane::stab, seedOf (k), 0.5f, genre));
+            laneLines.insert (makeRandomLane (Lane::stab, seedOf (k), 0.5f, genre));
+        }
+        CHECK ((int) laneLines.size() >= 6);
+        const auto p = makeRandomPattern (77, 0.5f, genre);
+        CHECK (makeVariation (p, 5).lanes == makeVariation (p, 5).lanes);
+        CHECK (makeSectionVariation (p, 5).lanes == makeSectionVariation (p, 5).lanes);
+    }
+}
+
 int main()
 {
     testSlideOnDownbeatAndAnswer();
@@ -1270,6 +1425,7 @@ int main()
     testGeneratedAudibility();
     testGenreIdentity();
     testRandomGrooves();
+    testDiceDiversity();
     testSections();
     testFillsAndVariations();
     testLoopLengthAndArrangement();

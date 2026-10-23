@@ -4,6 +4,11 @@
 
 All notable changes to **Fase Groove Guitar**.
 
+## [0.10.0] - 2026-10-23
+
+- Random grooves more varied: nearby seeds no longer give near copies, single-lane dice vary the second bar, Jackin' Piano adds 16th pushes, '90s octaves on the beats, Funky & Disco Nile-style 16ths and disco octaves, Gospel 8th-note licks, Dance octaves; busy scratches leave holes.
+- Fixed: parameters read without allocating on the audio thread (over 100 allocations per block before); the editor no longer rebuilds the groove 30 times a second.
+
 ## [0.9.0] - 2026-10-22
 
 - Random grooves stay in the selected genre: funk and jackin' on 16th chank and scratch, house and '90s on offbeat stabs, garage on 2-step skips, deep and soulful on sparse extended chords, afro on picked clave, neo-soul and chill on laid-back voicings with a lick, dance on short stabs, gospel on 8th strums.

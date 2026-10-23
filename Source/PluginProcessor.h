@@ -131,7 +131,7 @@ public:
 
     /** Sets a parameter from the UI, notifying the host. */
     void setParameterFromUI (const juce::String& id, float plainValue);
-    float raw (const juce::String& id) const;
+    float raw (juce::StringRef id) const;   // (a StringRef: no String is built, nothing allocated)
 
     //==============================================================================
     // The grid (message thread). Steps are as displayed (two bars); edits go into the user
@@ -349,6 +349,16 @@ public:
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
 
 private:
+    // The parameters with a numbered ID (one per lane, chord slot...), looked up once: the audio
+    // thread reads them every block without building their names.
+    struct LaneParams { std::atomic<float>* octave = nullptr; std::atomic<float>* level = nullptr; std::atomic<float>* mute = nullptr;
+                        std::atomic<float>* push = nullptr; std::atomic<float>* swing = nullptr; std::atomic<float>* volume = nullptr; };
+    std::array<LaneParams, fgg::numLanes> laneParams {};
+    std::array<std::atomic<float>*, fgg::maxChords> chordRootParams {}, chordTypeParams {};
+    std::array<std::atomic<float>*, fgg::numArticulations> keyswitchParams {};
+    std::array<std::atomic<float>*, fgg::numSegments> segmentParams {};
+    static float load (const std::atomic<float>* p) noexcept { return p != nullptr ? p->load() : 0.0f; }
+
     void setUserPattern (const fgg::GuitarPattern&);
     void resetStepExtras (int lane, int index) { userChance[(size_t) lane][(size_t) index] = 0; userRoll[(size_t) lane][(size_t) index] = 0; }
     /** A 2-bar groove is stored twice, so the 4-bar view repeats the bars just edited. */

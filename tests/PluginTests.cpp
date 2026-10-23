@@ -912,6 +912,40 @@ namespace
 
 namespace {
 
+    /** The numbered parameters (per lane, chord slot, keyswitch, part) reach the engine settings,
+        through the pointers looked up once for the audio thread. */
+    void testNumberedParameters()
+    {
+        FaseGrooveGuitarProcessor p;
+        for (int l = 0; l < fgg::numLanes; ++l)
+        {
+            p.setParameterFromUI (ParamIDs::octave (l), l % 2 == 0 ? 1.0f : -1.0f);
+            p.setParameterFromUI (ParamIDs::level (l), 0.5f + 0.05f * (float) l);
+            p.setParameterFromUI (ParamIDs::mute (l), l == 3 ? 1.0f : 0.0f);
+            p.setParameterFromUI (ParamIDs::push (l), (float) l - 5.0f);
+            p.setParameterFromUI (ParamIDs::laneSwing (l), 0.1f * (float) l);
+        }
+        for (int i = 0; i < fgg::maxChords; ++i)
+            p.setChord (i, { (i * 5) % 12, i % fgg::numChordTypes });
+        p.setSegmentAt (0, 2);
+        p.setSegmentAt (3, 1);
+        p.setParameterFromUI (ParamIDs::keyswitch (2), 31.0f);
+
+        const auto s = p.currentSettings();
+        for (int l = 0; l < fgg::numLanes; ++l)
+        {
+            CHECK (s.octaves[(size_t) l] == (l % 2 == 0 ? 1 : -1));
+            CHECK (std::abs (s.levels[(size_t) l] - (0.5f + 0.05f * (float) l)) < 0.02f);
+            CHECK (s.muted[(size_t) l] == (l == 3));
+            CHECK (std::abs (s.laneShift[(size_t) l] - ((float) l - 5.0f)) < 0.6f);
+            CHECK (std::abs (s.laneSwing[(size_t) l] - 0.1f * (float) l) < 0.02f);
+        }
+        for (int i = 0; i < fgg::maxChords; ++i)
+            CHECK ((s.chords[(size_t) i] == fgg::Chord { (i * 5) % 12, i % fgg::numChordTypes }));
+        CHECK (s.segmentOrder[0] == 2 && s.segmentOrder[3] == 1);
+        CHECK (s.keyswitch[2] == 31);
+    }
+
     void testFamilyPresets(){
         FaseGrooveGuitarProcessor p;const int first=p.styleNames().size()-fgfamily::numGenres;
         for(int genre=0;genre<fgfamily::numGenres;++genre){
@@ -946,6 +980,7 @@ int main (int argc, char** argv)
         return 0;
     }
 
+    testNumberedParameters();
     testFamilyPresets();
     testOldPresetDefaults();
     testStateRoundTrip();

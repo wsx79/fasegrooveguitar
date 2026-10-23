@@ -253,6 +253,19 @@ FaseGrooveGuitarProcessor::FaseGrooveGuitarProcessor()
     }
     for (auto& f : laneFlash)
         f = 0.0f;
+    for (int l = 0; l < fgg::numLanes; ++l)
+        laneParams[(size_t) l] = { apvts.getRawParameterValue (ParamIDs::octave (l)), apvts.getRawParameterValue (ParamIDs::level (l)),
+                                   apvts.getRawParameterValue (ParamIDs::mute (l)), apvts.getRawParameterValue (ParamIDs::push (l)),
+                                   apvts.getRawParameterValue (ParamIDs::laneSwing (l)), apvts.getRawParameterValue (ParamIDs::laneVolume (l)) };
+    for (int i = 0; i < fgg::maxChords; ++i)
+    {
+        chordRootParams[(size_t) i] = apvts.getRawParameterValue (ParamIDs::chordRoot (i));
+        chordTypeParams[(size_t) i] = apvts.getRawParameterValue (ParamIDs::chordType (i));
+    }
+    for (int a = 0; a < fgg::numArticulations; ++a)
+        keyswitchParams[(size_t) a] = apvts.getRawParameterValue (ParamIDs::keyswitch (a));
+    for (int i = 0; i < fgg::numSegments; ++i)
+        segmentParams[(size_t) i] = apvts.getRawParameterValue (ParamIDs::segment (i));
     resetSong();
     appliedKey = juce::roundToInt (raw (ParamIDs::key));
     linkTimer.startTimer (150);
@@ -288,7 +301,7 @@ juce::AudioProcessorEditor* FaseGrooveGuitarProcessor::createEditor()
     return new FaseGrooveGuitarEditor (*this);
 }
 
-float FaseGrooveGuitarProcessor::raw (const juce::String& id) const
+float FaseGrooveGuitarProcessor::raw (juce::StringRef id) const
 {
     if (auto* v = apvts.getRawParameterValue (id))
         return v->load();
@@ -327,11 +340,12 @@ fgg::GuitarSettings FaseGrooveGuitarProcessor::currentSettings() const
 
     for (int l = 0; l < fgg::numLanes; ++l)
     {
-        s.octaves[(size_t) l] = juce::roundToInt (raw (ParamIDs::octave (l)));
-        s.levels[(size_t) l] = raw (ParamIDs::level (l));
-        s.muted[(size_t) l] = raw (ParamIDs::mute (l)) > 0.5f;
-        s.laneShift[(size_t) l] = raw (ParamIDs::push (l));
-        s.laneSwing[(size_t) l] = raw (ParamIDs::laneSwing (l));
+        const auto& lp = laneParams[(size_t) l];
+        s.octaves[(size_t) l] = juce::roundToInt (load (lp.octave));
+        s.levels[(size_t) l] = load (lp.level);
+        s.muted[(size_t) l] = load (lp.mute) > 0.5f;
+        s.laneShift[(size_t) l] = load (lp.push);
+        s.laneSwing[(size_t) l] = load (lp.swing);
         for (int i = 0; i < fgg::userPatternLength; ++i)
         {
             s.user[(size_t) l][(size_t) i] = userGrid[(size_t) l][(size_t) i].load();
@@ -354,7 +368,7 @@ fgg::GuitarSettings FaseGrooveGuitarProcessor::currentSettings() const
     s.pushChanges = raw (ParamIDs::pushChanges) > 0.5f;
     s.keyswitches = raw (ParamIDs::keyswitches) > 0.5f;
     for (int a = 0; a < fgg::numArticulations; ++a)
-        s.keyswitch[(size_t) a] = juce::jlimit (0, 39, juce::roundToInt (raw (ParamIDs::keyswitch (a))));
+        s.keyswitch[(size_t) a] = juce::jlimit (0, 39, juce::roundToInt (load (keyswitchParams[(size_t) a])));
     s.grooveTemplate.active = templateActive.load();
     for (int i = 0; i < 16; ++i)
     {
@@ -375,7 +389,7 @@ fgg::GuitarPattern FaseGrooveGuitarProcessor::displayedPattern() const
 
 int FaseGrooveGuitarProcessor::segmentAt (int position) const
 {
-    return juce::jlimit (0, fgg::numSegments - 1, juce::roundToInt (raw (ParamIDs::segment (juce::jlimit (0, fgg::numSegments - 1, position)))));
+    return juce::jlimit (0, fgg::numSegments - 1, juce::roundToInt (load (segmentParams[(size_t) juce::jlimit (0, fgg::numSegments - 1, position)])));
 }
 
 void FaseGrooveGuitarProcessor::setSegmentAt (int position, int part)
@@ -744,8 +758,8 @@ bool FaseGrooveGuitarProcessor::isAudioFile (const juce::File& file)
 fgg::Chord FaseGrooveGuitarProcessor::chordAt (int slot) const
 {
     slot = juce::jlimit (0, fgg::maxChords - 1, slot);
-    return { juce::jlimit (0, 11, juce::roundToInt (raw (ParamIDs::chordRoot (slot)))),
-             juce::jlimit (0, fgg::numChordTypes - 1, juce::roundToInt (raw (ParamIDs::chordType (slot)))) };
+    return { juce::jlimit (0, 11, juce::roundToInt (load (chordRootParams[(size_t) slot]))),
+             juce::jlimit (0, fgg::numChordTypes - 1, juce::roundToInt (load (chordTypeParams[(size_t) slot]))) };
 }
 
 void FaseGrooveGuitarProcessor::setChord (int slot, fgg::Chord chord)
@@ -1276,7 +1290,7 @@ void FaseGrooveGuitarProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
         std::array<float, fgg::numLanes> gains {};
         for (int l = 0; l < fgg::numLanes; ++l)
         {
-            const float db = raw (ParamIDs::laneVolume (l));
+            const float db = load (laneParams[(size_t) l].volume);
             gains[(size_t) l] = db <= -47.9f ? 0.0f : juce::Decibels::decibelsToGain (db);
         }
         guitar.setSound (juce::roundToInt (raw (ParamIDs::kit)));

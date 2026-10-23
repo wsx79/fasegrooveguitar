@@ -4069,11 +4069,14 @@ void FaseGrooveGuitarEditor::timerCallback()
     mainTemplate.setColour (juce::TextButton::buttonOnColourId, Palette::accent.darker (0.35f));
     templateButton.setColour (juce::TextButton::buttonOnColourId, Palette::accent.darker (0.35f));
 
-    const auto shown = processor.displayedPattern();
     const int step = processor.uiStep.load();
     if (slowTick)
+    {
+        // (resolved only when the cards refresh: the groove is rebuilt from scratch each time)
+        const auto shown = processor.displayedPattern();
         for (auto& card : partCards)
             card->refresh (shown, step);
+    }
     refreshKitPanel();
 
     // The groove's name on its button.

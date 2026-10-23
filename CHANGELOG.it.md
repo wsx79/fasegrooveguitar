@@ -4,6 +4,11 @@
 
 Tutte le modifiche importanti di **Fase Groove Guitar**.
 
+## [0.10.0] - 2026-10-23
+
+- Groove casuali più vari: semi vicini non danno più copie quasi uguali, il dado su una corsia varia la seconda battuta, Jackin' Piano aggiunge spinte in sedicesimi, '90s ottave sui battiti, Funky & Disco sedicesimi stile Nile e ottave disco, Gospel lick in ottavi, Dance ottave; gli scratch fitti lasciano dei buchi.
+- Corretto: parametri letti senza allocare nel thread audio (prima oltre 100 allocazioni per blocco); l'editor non ricostruisce più il groove 30 volte al secondo.
+
 ## [0.9.0] - 2026-10-22
 
 - I groove casuali restano nel genere scelto: funk e jackin' su chank e scratch in sedicesimi, house e anni '90 su stab in levare, garage su pause da 2-step, deep e soulful su accordi estesi radi, afro su clave pennato, neo-soul e chill su voicing rilassati con lick, dance su stab corti, gospel su pennate in ottavi.
