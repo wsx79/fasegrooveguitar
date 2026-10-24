@@ -471,7 +471,7 @@ namespace
 
         juce::AudioBuffer<float> buffer (2, 512);
         int notes = 0;
-        bool sound = false;
+        bool sound = false; float dbgPeak = 0;
         const double beatsPerBlock = 512.0 / (48000.0 * 60.0 / head.bpm);
         const int blocks = (int) std::ceil (8.0 / beatsPerBlock);   // two bars
         for (int b = 0; b < blocks; ++b)
@@ -482,7 +482,9 @@ namespace
             for (const auto m : midi)
                 notes += m.getMessage().isNoteOn() ? 1 : 0;
             sound = sound || buffer.getMagnitude (0, 512) > 0.01f;
+            dbgPeak = std::max (dbgPeak, buffer.getMagnitude (0, 512));
         }
+        CHECK (dbgPeak > 0.4f && dbgPeak <= 1.0f);   // loud enough on its own, never past full scale
         CHECK (notes >= 8 * 3);   // eight offbeat stabs of three strings, and scratches
         CHECK (sound);           // the guide guitar plays
 

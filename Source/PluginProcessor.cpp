@@ -312,7 +312,7 @@ void FaseGrooveGuitarProcessor::prepareToPlay (double sampleRate, int samplesPer
     reverbFx.setSampleRate (sampleRate);
     reverbFx.reset();
     outputGain.reset (sampleRate, 0.05);
-    outputGain.setCurrentAndTargetValue (juce::Decibels::decibelsToGain (raw (ParamIDs::volume)));
+    outputGain.setCurrentAndTargetValue (outputLevel());
     events.reserve ((size_t) juce::jmax (8192, samplesPerBlock / 2));
 }
 
@@ -1312,12 +1312,35 @@ void FaseGrooveGuitarProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
                 reverbFx.processMono (buffer.getWritePointer (0), numSamples);
         }
 
-        outputGain.setTargetValue (juce::Decibels::decibelsToGain (raw (ParamIDs::volume)));
+        outputGain.setTargetValue (outputLevel());
         outputGain.applyGain (buffer, numSamples);
+        softLimit (buffer, numSamples);
     }
 
     samplesProcessed += numSamples;
     midi.swapWith (outMidi);
+}
+
+//==============================================================================
+float FaseGrooveGuitarProcessor::outputLevel() const
+{
+    // Short stabs read quiet next to piano and drums: +8 dB of make-up under the Volume knob.
+    return juce::Decibels::decibelsToGain (raw (ParamIDs::volume) + 8.0f);
+}
+
+void FaseGrooveGuitarProcessor::softLimit (juce::AudioBuffer<float>& buffer, int numSamples)
+{
+    // Transparent below 0.8; above it a soft knee that never passes 1.0.
+    for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+    {
+        auto* x = buffer.getWritePointer (ch);
+        for (int i = 0; i < numSamples; ++i)
+        {
+            const float a = std::abs (x[i]);
+            if (a > 0.8f)
+                x[i] = std::copysign (0.8f + 0.2f * std::tanh ((a - 0.8f) / 0.2f), x[i]);
+        }
+    }
 }
 
 //==============================================================================
@@ -1550,7 +1573,7 @@ void FaseGrooveGuitarProcessor::renderGuideAudio (const std::vector<fgg::NoteEve
     rp.wetLevel = amount * 0.4f;
     rp.dryLevel = 1.0f - amount * 0.25f;
     reverb.setParameters (rp);
-    const float gain = juce::Decibels::decibelsToGain (raw (ParamIDs::volume));
+    const float gain = outputLevel();
 
     constexpr int renderBlock = 256;
     juce::AudioBuffer<float> block (2, renderBlock);
@@ -1572,8 +1595,10 @@ void FaseGrooveGuitarProcessor::renderGuideAudio (const std::vector<fgg::NoteEve
         guide.render (block, blockEvents, gains);
         if (amount > 0.001f)
             reverb.processStereo (block.getWritePointer (0), block.getWritePointer (1), n);
+        block.applyGain (0, n, gain);
+        softLimit (block, n);
         for (int ch = 0; ch < 2; ++ch)
-            out.addFrom (ch, start, block, ch, 0, n, gain);
+            out.addFrom (ch, start, block, ch, 0, n);
     }
 }
 

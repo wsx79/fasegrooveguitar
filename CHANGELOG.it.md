@@ -4,6 +4,10 @@
 
 Tutte le modifiche importanti di **Fase Groove Guitar**.
 
+## [0.10.6] - 2026-10-24
+
+- Chitarra più forte: +8 dB di guadagno sotto la manopola Volume (i colpi corti risultavano bassi accanto a piano e batteria), con un limitatore morbido che non supera mai il fondo scala. Anche nell'export audio.
+
 ## [0.10.5] - 2026-10-24
 
 - Widget dell'editor e finestra di aggiornamento ora vengono dal modulo comune FaseGroove. Aspetto e suono invariati.

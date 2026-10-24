@@ -342,6 +342,8 @@ public:
     std::atomic<double> lastBpm { 120.0 };   // tempo in use (DAW or manual)
     std::atomic<double> hostBpm { 120.0 };   // what the DAW reports
     /** The tempo exported files use: the manual BPM, or the DAW's (as last reported). */
+    float outputLevel() const;
+    static void softLimit (juce::AudioBuffer<float>&, int numSamples);
     double exportBpm() const;
 
     // Read by the editor for display.
