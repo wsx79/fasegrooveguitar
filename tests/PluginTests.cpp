@@ -457,6 +457,45 @@ namespace
         if (small.size() > 1) CHECK (small[1].first - small[0].first == 1764);
     }
 
+    void testOverviewShowsWhatPlays()
+    {
+        // Every note processBlock plays over 16 bars (variations, fills, crashes, humanize) is in what
+        // the overview shows for those bars (playedNotes), for the presets and random grooves.
+        for (int trial = 0; trial < 6; ++trial)
+        {
+            FaseGrooveGuitarProcessor p;
+            PlayHead head;
+            p.setPlayHead (&head);
+            p.setRateAndBufferSizeDetails (44100.0, 256);
+            p.prepareToPlay (44100.0, 256);
+            if (trial > 0)
+                p.rollNewBeat();
+            if (trial == 5)
+                p.setParameterFromUI (ParamIDs::section, 3.0f);
+            const double sr = 44100.0, beatsPerBlock = 256.0 / (sr * 60.0 / head.bpm), length = 64.0;
+            std::set<std::pair<long long, int>> played, shown;
+            const int len = p.steps();
+            for (long long first = 0; first * fgg::stepLength < length; first += len)
+                for (const auto& e : p.playedNotes (first, len))
+                    shown.insert ({ FaseGrooveGuitarProcessor::stepOf (e.ppq), e.note });
+            juce::AudioBuffer<float> buffer (2, 256);
+            for (int b = 0; b * beatsPerBlock < length - 1.0; ++b)
+            {
+                head.ppq = b * beatsPerBlock;
+                juce::MidiBuffer midi;
+                p.processBlock (buffer, midi);
+                for (const auto m : midi)
+                    if (m.getMessage().isNoteOn())
+                        played.insert ({ FaseGrooveGuitarProcessor::stepOf (head.ppq + m.samplePosition / (sr * 60.0 / head.bpm)), m.getMessage().getNoteNumber() });
+            }
+            int missing = 0;
+            for (const auto& v : played)
+                missing += shown.count (v) == 0 ? 1 : 0;
+            CHECK (missing == 0);
+            CHECK (! played.empty());
+        }
+    }
+
     void testTransport()
     {
         FaseGrooveGuitarProcessor p;
@@ -979,6 +1018,7 @@ int main (int argc, char** argv)
     testAudioExport();
     testChannelChangeWhilePlaying();
     testAuditionStrumAcrossBlocks();
+    testOverviewShowsWhatPlays();
     testTransport();
     testChordInput();
     testMidiImport();

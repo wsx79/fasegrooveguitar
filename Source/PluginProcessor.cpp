@@ -400,6 +400,43 @@ fgg::GuitarPattern FaseGrooveGuitarProcessor::displayedPattern() const
     return fgg::applySegmentOrder (fgg::GrooveEngine::basePattern (settings), settings.segmentOrder);
 }
 
+std::vector<fgg::NoteEvent> FaseGrooveGuitarProcessor::playedNotes (long long firstStep, int numSteps) const
+{
+    auto settings = currentSettings();
+    settings.tempo = lastBpm.load();   // as processBlock plays it
+    fgg::GrooveEngine renderer;
+    const auto ready = std::atomic_load (&preparedPattern);
+    renderer.setPrepared (ready.get());
+    std::vector<fgg::NoteEvent> events, played;
+    const double start = (double) firstStep * fgg::stepLength;
+    // From a beat earlier: a hit pushed ahead of the window's first step still belongs to it.
+    renderer.render (start - 1.0, start + numSteps * fgg::stepLength, settings, events);
+    for (const auto& e : events)
+    {
+        if (! e.isNoteOn() || e.lane == fgg::keyswitchLane)
+            continue;
+        const auto step = stepOf (e.ppq);
+        if (step >= firstStep && step < firstStep + numSteps)
+            played.push_back (e);
+    }
+    return played;
+}
+
+fgg::GuitarPattern FaseGrooveGuitarProcessor::playedPattern (long long firstStep, int numSteps) const
+{
+    fgg::GuitarPattern shown;
+    for (auto& lane : shown.lanes)
+        lane.assign ((size_t) juce::jmax (0, numSteps), '.');
+    for (const auto& e : playedNotes (firstStep, numSteps))
+    {
+        auto& cell = shown.lanes[(size_t) juce::jlimit (0, fgg::numLanes - 1, e.lane)][(size_t) (stepOf (e.ppq) - firstStep)];
+        const char symbol = e.velocity >= 105 ? 'X' : e.velocity < 55 ? 'g' : 'x';
+        if (cell == '.' || symbol == 'X' || (symbol == 'x' && cell == 'g'))
+            cell = symbol;   // the loudest hit of the step
+    }
+    return shown;
+}
+
 int FaseGrooveGuitarProcessor::segmentAt (int position) const
 {
     return juce::jlimit (0, fgg::numSegments - 1, juce::roundToInt (load (segmentParams[(size_t) juce::jlimit (0, fgg::numSegments - 1, position)])));
@@ -1196,6 +1233,8 @@ void FaseGrooveGuitarProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
         const int n = fgg::GrooveEngine::patternLength (settings);
         uiStep = (int) (((step % n) + n) % n);
         uiPpq = startPpq;
+        uiSteps = n;
+        playClock.publish (startPpq, blockBeats + linkCorrection, numSamples / juce::jmax (1.0, getSampleRate()));
     }
     else
     {
@@ -1203,6 +1242,7 @@ void FaseGrooveGuitarProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
             engine.allNotesOff (startPpq, events);
         uiStep = -1;
         uiPpq = -1.0;
+        playClock.stop();
     }
     wasRunning = running;
 

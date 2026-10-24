@@ -67,8 +67,19 @@ void GuitarGrid::refresh()
     pattern = processor.displayedPattern();
     for (int l = 0; l < fgg::numLanes; ++l)
         muted[(size_t) l] = processor.isLaneMuted (l);
-    playStep = processor.uiStep.load();
+    playStep = processor.displayStep();
     repaint();
+}
+
+void GuitarGrid::setPlayStep (int step)
+{
+    if (step == playStep)
+        return;
+    const int steps = processor.steps();
+    for (int s : { playStep, step })
+        if (juce::isPositiveAndBelow (s, steps))
+            repaint (cellBounds (0, s).withHeight ((float) getHeight()).getSmallestIntegerContainer().expanded (1, 0));
+    playStep = step;
 }
 
 juce::Rectangle<float> GuitarGrid::headerBounds (int lane) const
@@ -487,8 +498,20 @@ void VelocityView::refresh()
         setByHand[(size_t) i] = processor.stepVelocity (lane, i);
         levels[(size_t) i] = processor.effectiveVelocity (lane, i);
     }
-    playStep = processor.uiStep.load();
+    playStep = processor.displayStep();
     repaint();
+}
+
+void VelocityView::setPlayStep (int step)
+{
+    if (step == playStep)
+        return;
+    const int steps = processor.steps();
+    const auto strip = stripArea(), area = laneArea();
+    for (int s : { playStep, step })
+        if (juce::isPositiveAndBelow (s, steps))
+            repaint (column (s, strip).getUnion (column (s, area)).getSmallestIntegerContainer().expanded (1, 1));
+    playStep = step;
 }
 
 void VelocityView::resized()
@@ -1927,7 +1950,7 @@ void ChordPanel::refresh()
     for (int i = 0; i < fgg::maxChords; ++i)
         now[(size_t) i] = processor.chordAt (i);
     const int n = processor.chordCount();
-    const double ppq = processor.uiPpq.load();
+    const double ppq = processor.displayPpq();
     const int playing = ppq >= 0.0 ? (int) std::fmod (std::floor (ppq / 4.0), (double) n) : -1;
     const auto heldNow = processor.heldChord();
     const bool followingNow = processor.followsHeldChord();
@@ -2230,7 +2253,7 @@ void ProgressionBrowser::updateCircle()
         progression.push_back ({ ch.root, isMinor (ch), {}, score });
         moves.push_back (score);
     }
-    const double ppq = processor.uiPpq.load();
+    const double ppq = processor.displayPpq();
     const int playing = ppq >= 0.0 ? (int) std::fmod (std::floor (ppq / 4.0), (double) n) : -1;
     circle.setState (key, fgg::scaleIsMinor (scale), fgg::scaleName (scale), progression, moves, playing, diatonic);
 }
@@ -2387,10 +2410,15 @@ bool ProgressionBrowser::keyPressed (const juce::KeyPress& key)
 //==============================================================================
 void GrooveOverview::refresh()
 {
-    pattern = processor.displayedPattern();
+    // What plays in the bars under the playhead (from the start when stopped): variations, fills
+    // and the section too, not only the written groove.
+    const int len = processor.steps();
+    const double ppq = processor.displayPpq();
+    const long long first = ppq < 0.0 ? 0 : (long long) std::floor (ppq / fgg::stepLength) / len * len;
+    pattern = processor.playedPattern (first, len);
     for (int l = 0; l < fgg::numLanes; ++l)
         muted[(size_t) l] = processor.isLaneMuted (l);
-    playStep = processor.uiStep.load();
+    playStep = processor.displayStep();
     repaint();
 }
 
@@ -3027,6 +3055,7 @@ FaseGrooveGuitarEditor::FaseGrooveGuitarEditor (FaseGrooveGuitarProcessor& p)
 
     addMouseListener (this, true);   // the undo history: see mouseUp
     startTimerHz (30);
+    playTimer.startTimerHz (60);
 }
 
 FaseGrooveGuitarEditor::~FaseGrooveGuitarEditor()
@@ -3406,7 +3435,7 @@ void FaseGrooveGuitarEditor::paintContent (juce::Graphics& g)
                                                                                                                        : juce::String (base.name),
                           top, juce::Justification::centredLeft, 1, 0.6f);
 
-        const double ppq = processor.uiPpq.load();
+        const double ppq = processor.displayPpq();
         const auto where = ppq >= 0.0 ? tr ("Bar") + " " + juce::String ((int) std::floor (ppq / 4.0) + 1) + "  " + tr ("Beat") + " " + juce::String ((int) std::floor (std::fmod (ppq, 4.0)) + 1)
                                       : tr ("Stopped");
         const auto genre = settings.pattern == fgg::userPatternIndex() ? tr ("Your pattern")
@@ -3453,7 +3482,7 @@ void FaseGrooveGuitarEditor::paintContent (juce::Graphics& g)
 
     // The notes the picked lane plays over the chord of the bar.
     {
-        const double ppq = processor.uiPpq.load();
+        const double ppq = processor.displayPpq();
         const long long bar = ppq >= 0.0 ? (long long) std::floor (ppq / 4.0) : 0;
         const auto notes = fgg::laneNotes ((fgg::Lane) selectedLane, processor.chordForBar (bar),
                                            ppq >= 0.0 ? (int) std::floor (ppq / fgg::stepLength) % 16 : 0, processor.laneOctave (selectedLane));
@@ -3555,6 +3584,39 @@ void FaseGrooveGuitarEditor::stepGroove (int delta)
     processor.selectGroove (order[(size_t) index]);
 }
 
+void FaseGrooveGuitarEditor::showPlayPosition()
+{
+    if (miniMode)
+        return;
+    const int step = processor.displayStep();
+    overview.setPlayStep (step);
+    if (editOverlay.isVisible())
+    {
+        if (viewMode == 0)
+            grid.setPlayStep (step);
+        else if (viewMode == 1)
+            velocityView.setPlayStep (step);
+    }
+    // A new window of bars: the overview shows what they play.
+    const int len = juce::jmax (1, processor.steps());
+    const double ppq = processor.displayPpq();
+    const long long window = ppq < 0.0 ? -1 : (long long) std::floor (ppq / fgg::stepLength) / len;
+    if (window != shownWindow)
+    {
+        shownWindow = window;
+        overview.refresh();
+    }
+    // The part playing lights up when the sound gets there, not at the next slow refresh.
+    const int segment = step < 0 ? -1 : step / juce::jmax (1, processor.steps() / fgg::numSegments);
+    if (segment != shownSegment)
+    {
+        shownSegment = segment;
+        const auto shown = processor.displayedPattern();
+        for (auto& card : partCards)
+            card->refresh (shown, step);
+    }
+}
+
 void FaseGrooveGuitarEditor::timerCallback()
 {
     if (miniMode)
@@ -3582,8 +3644,6 @@ void FaseGrooveGuitarEditor::timerCallback()
 
     if (slowTick)
         overview.refresh();
-    else
-        overview.setPlayStep (processor.uiStep.load());   // the light 30 times a second, as the sound
     miniMixer.refresh();
     const bool playingNow = processor.previewOn.load();
     editOverlay.playButton.setIcon (playingNow ? IconButton::Icon::pause : IconButton::Icon::play);
@@ -3622,7 +3682,7 @@ void FaseGrooveGuitarEditor::timerCallback()
     templateButton.setToggleState (processor.hasGrooveTemplate(), juce::dontSendNotification);
     mainTemplate.setToggleState (processor.hasGrooveTemplate(), juce::dontSendNotification);
 
-    const int step = processor.uiStep.load();
+    const int step = processor.displayStep();
     if (slowTick)
     {
         // (resolved only when the cards refresh: the groove is rebuilt from scratch each time)

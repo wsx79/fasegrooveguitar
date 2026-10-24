@@ -4,6 +4,11 @@
 
 All notable changes to **Fase Groove Guitar**.
 
+## [0.10.7] - 2026-10-24
+
+- The overview shows the bars as they play, fills and variations included.
+- The step lights and the playhead follow the sound without lag: the position is carried forward between audio blocks and drawn at 60 Hz, redrawing only what moves.
+
 ## [0.10.6] - 2026-10-24
 
 - Louder guitar: +8 dB of make-up gain under the Volume knob (short stabs read quiet next to piano and drums), with a soft limiter that never passes full scale. Audio export included.

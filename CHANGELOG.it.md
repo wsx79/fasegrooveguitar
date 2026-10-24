@@ -4,6 +4,11 @@
 
 Tutte le modifiche importanti di **Fase Groove Guitar**.
 
+## [0.10.7] - 2026-10-24
+
+- La panoramica mostra le battute come suonano, fill e variazioni compresi.
+- Le luci del passo e il playhead seguono il suono senza ritardo: la posizione viene portata avanti tra un blocco audio e l'altro e disegnata a 60 Hz, ridisegnando solo ciò che si muove.
+
 ## [0.10.6] - 2026-10-24
 
 - Chitarra più forte: +8 dB di guadagno sotto la manopola Volume (i colpi corti risultavano bassi accanto a piano e batteria), con un limitatore morbido che non supera mai il fondo scala. Anche nell'export audio.

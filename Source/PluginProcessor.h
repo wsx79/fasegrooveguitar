@@ -4,6 +4,7 @@
 #pragma once
 
 #include "LinkFile.h"
+#include "PlayClock.h"
 #include "RawParameters.h"
 #include "RetireBin.h"
 
@@ -150,6 +151,13 @@ public:
     void clearGrid();
     /** The groove shown on the grid: as you hear it in the A-D order (before the song section). */
     fgg::GuitarPattern displayedPattern() const;
+    /** What plays in the `numSteps` 16ths from `firstStep` (variations, fills, the section, humanize...):
+        the note-ons the same render as the playback gives, for the views. The step of a note is
+        stepOf (its time). */
+    std::vector<fgg::NoteEvent> playedNotes (long long firstStep, int numSteps) const;
+    /** The same as a groove (one cell per lane and step; X loud, g soft), for the overview. */
+    fgg::GuitarPattern playedPattern (long long firstStep, int numSteps) const;
+    static long long stepOf (double ppq) noexcept { return (long long) std::floor (ppq / fgg::stepLength + 0.3); }
 
     // A B C D: the four half bars of the groove, played in any order; each can get new random
     // content (its die) or be locked so the dice leave it alone.
@@ -349,6 +357,19 @@ public:
     // Read by the editor for display.
     std::atomic<int> uiStep { -1 };       // current 16th within the pattern, -1 = stopped
     std::atomic<double> uiPpq { -1.0 };   // playing position in beats, -1 = stopped
+    std::atomic<int> uiSteps { 16 };     // the pattern's length in steps, for displayStep()
+    FaseGroove::PlayClock playClock;     // where the sound is now (PlayClock.h)
+    /** Message thread: the position and the step heard now, moved on from the last block (-1 = stopped). */
+    double displayPpq() const noexcept { return playClock.position(); }
+    int displayStep() const noexcept
+    {
+        const double ppq = playClock.position();
+        if (ppq < 0.0)
+            return -1;
+        const auto step = (long long) std::floor (ppq / fgg::stepLength);
+        const int n = std::max (1, uiSteps.load());
+        return (int) (((step % n) + n) % n);
+    }
     std::array<std::atomic<float>, fgg::numLanes> laneFlash {};   // last velocity per lane (for the grid's lights)
 
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
