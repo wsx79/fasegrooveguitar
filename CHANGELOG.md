@@ -4,6 +4,10 @@
 
 All notable changes to **Fase Groove Guitar**.
 
+## [0.10.3] - 2026-10-24
+
+- Genre presets and Total random no longer drop the guitar volume to about -27 dB: the Volume knob keeps your level, so the plugin is audible on its own.
+
 ## [0.10.2] - 2026-10-24
 
 - Every random groove has an audible chord part (a few were almost silent).

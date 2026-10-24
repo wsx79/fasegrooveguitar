@@ -281,6 +281,7 @@ namespace
             p.totalRandom();
             CHECK (juce::isPositiveAndBelow (p.currentSettings().randomGenre, fgfamily::numGenres));
             CHECK (countNoteOns (p.createMidiClip (4, FaseGrooveGuitarProcessor::ClipPart::all)) > 0);
+            CHECK (value (p, ParamIDs::volume) > -12.0f);   // random never leaves the guitar inaudible
         }
         p.resetToDefaults();
         CHECK (juce::roundToInt (value (p, ParamIDs::pattern)) == 0);

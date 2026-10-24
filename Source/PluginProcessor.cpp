@@ -997,7 +997,6 @@ void FaseGrooveGuitarProcessor::applyStyle (int index)
         setParameterFromUI(ParamIDs::letRing,genre==11?1.f:0.f);
         setParameterFromUI(ParamIDs::roomForBand,1);
         setParameterFromUI(ParamIDs::reverb,.07f);
-        setParameterFromUI(ParamIDs::volume,juce::Decibels::gainToDecibels((float)(.225*a.guitarGain)));
         setParameterFromUI(ParamIDs::fills,0);
         if(genre==4){
             const auto& p=fgg::guitarPatterns()[(size_t)indexOfGroove("Chicago Chank")];

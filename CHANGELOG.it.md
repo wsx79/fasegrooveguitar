@@ -4,6 +4,10 @@
 
 Tutte le modifiche importanti di **Fase Groove Guitar**.
 
+## [0.10.3] - 2026-10-24
+
+- I preset di genere e il Random totale non abbassano più il volume della chitarra a circa -27 dB: la manopola Volume mantiene il tuo livello e il plugin si sente anche da solo.
+
 ## [0.10.2] - 2026-10-24
 
 - Ogni groove casuale ha una parte di accordi udibile (alcuni erano quasi muti).
