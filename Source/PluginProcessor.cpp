@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 #include "PluginProcessor.h"
+#include "LinkFile.h"
+#include "MidiExport.h"
 #include "FamilySoundProfiles.h"
 #include "PluginEditor.h"
 #include "Localisation.h"
@@ -1472,16 +1474,7 @@ juce::MidiFile FaseGrooveGuitarProcessor::midiFromEvents (const std::vector<fgg:
 
 bool FaseGrooveGuitarProcessor::writeMidiFileSafely (const juce::MidiFile& midi, const juce::File& target)
 {
-    juce::TemporaryFile temp (target);
-    {
-        juce::FileOutputStream out (temp.getFile());
-        if (! out.openedOk() || ! midi.writeTo (out))
-            return false;
-        out.flush();
-        if (out.getStatus().failed())
-            return false;
-    }
-    return temp.overwriteTargetFileWithTemporary();
+    return FaseGroove::writeMidiFileSafely (midi, target);
 }
 
 juce::MidiFile FaseGrooveGuitarProcessor::createMidiClip (int bars, ClipPart part) const
@@ -1800,7 +1793,7 @@ void FaseGrooveGuitarProcessor::updateLink()
 
     // Someone else changed it: take what changed.
     if (file.existsAsFile())
-        if (const auto text = file.loadFileAsString(); text != linkSeenText)
+        if (const auto text = linkPolled.read (file); text != linkSeenText)
         {
             linkSeenText = text;
             if (auto xml = juce::parseXML (text); xml != nullptr && xml->getStringAttribute ("instance") != me)
@@ -1882,7 +1875,7 @@ void FaseGrooveGuitarProcessor::updateLink()
     }
     file.getParentDirectory().createDirectory();
     if (xml.writeTo (file))
-        linkSeenText = file.loadFileAsString();
+        linkSeenText = xml.toString();   // what was just written: no need to read it back
     linkShared = now;
 }
 

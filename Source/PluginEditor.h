@@ -449,9 +449,13 @@ public:
     void paint (juce::Graphics&) override;
     void mouseDown (const juce::MouseEvent&) override { if (onOpen != nullptr) onOpen(); }
     void refresh();
+    /** The playing step only (every UI tick, so the light keeps up with the sound): repaints
+        just the two columns that changed. */
+    void setPlayStep (int step);
     std::function<void()> onOpen;
 
 private:
+    juce::Rectangle<int> stepColumn (int step) const;
     FaseGrooveGuitarProcessor& processor;
     fgg::GuitarPattern pattern;
     std::array<bool, fgg::numLanes> muted {};

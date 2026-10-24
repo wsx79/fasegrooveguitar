@@ -17,10 +17,8 @@
 
 using namespace fgg;
 
-static int failures = 0;
+#include "TestSupport.h"
 
-#define CHECK(cond) \
-    do { if (! (cond)) { std::printf ("FAILED %s:%d: %s\n", __FILE__, __LINE__, #cond); ++failures; } } while (false)
 
 namespace
 {
@@ -724,6 +722,17 @@ static void testGeneratedAudibility()
                 const auto events = GrooveEngine::renderClip (s, 8.0);
                 CHECK (countOns (events) > 0);
                 CHECK (maxOnVelocity (events) >= 74);
+
+                // A main part you hear: a chord lane at a normal level, not only swells, a few
+                // arpeggio notes or scratches.
+                int chordPeak = 0;
+                for (const auto& e : events)
+                    if (e.isNoteOn() && (e.lane == (int) Lane::strumDown || e.lane == (int) Lane::strumUp || e.lane == (int) Lane::stab
+                                         || e.lane == (int) Lane::chank || e.lane == (int) Lane::power))
+                        chordPeak = std::max (chordPeak, e.velocity);
+                if (chordPeak < 60)
+                    std::printf ("quiet random groove: genre %d, density %.2f, seed %u (chord peak %d)\n", genre, (double) density, seed, chordPeak);
+                CHECK (chordPeak >= 60);   // a plain hit, not a ghost (ghosts sit under 55)
             }
 
     // The grooves a player reported as silent (piano house, jackin', density at the floor).

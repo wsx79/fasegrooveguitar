@@ -4,6 +4,12 @@
 
 Tutte le modifiche importanti di **Fase Groove Guitar**.
 
+## [0.10.2] - 2026-10-24
+
+- Ogni groove casuale ha una parte di accordi udibile (alcuni erano quasi muti).
+- Le luci della griglia seguono di nuovo il suono (erano in ritardo dalla 0.10.1).
+- Il codice comune FaseGroove ora viene dal modulo comune; i progetti salvati non cambiano.
+
 ## [0.10.1] - 2026-10-24
 
 - Il groove si prepara fuori dal thread audio e poi viene sostituito: cambiare un'impostazione non alloca più memoria nel thread audio.

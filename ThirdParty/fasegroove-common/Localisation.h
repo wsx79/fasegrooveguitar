@@ -1,9 +1,9 @@
-// Fase Groove Guitar - Copyright (C) 2026 Fabio 'Pitch' Serra
+// Fase Groove family - Copyright (C) 2026 Fabio 'Pitch' Serra
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 #pragma once
 
-// User-interface translations, as in Fase Groove Piano. The English text is the key:
+// User-interface translations, shared by the Fase Groove family. The English text is the key:
 // tr ("CLOSE") returns the text in the current language, or the English text itself when no
 // translation exists (groove names and musical terms stay as they are).
 // The chosen language is a user preference shared by every project.
@@ -44,6 +44,14 @@ namespace Localisation
 
     /** Translates an English UI text into the current language. */
     juce::String tr (const juce::String& english);
+
+    /** One row of a translation table: the English text is the key. */
+    struct Entry { const char* en; const char* it; const char* es; const char* fr; const char* de; const char* pt; };
+    struct Table { const Entry* rows; std::size_t size; };
+
+    /** The product's own texts (its Source/Translations.inc, defined in Source/Product.cpp).
+        They are read after the shared CommonTranslations.inc, so a product row wins. */
+    Table productTranslations();
 
     // ---- Texts that follow the language ----
     void bindText (juce::Button&, const juce::String& english);

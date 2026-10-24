@@ -4,6 +4,12 @@
 
 All notable changes to **Fase Groove Guitar**.
 
+## [0.10.2] - 2026-10-24
+
+- Every random groove has an audible chord part (a few were almost silent).
+- The grid lights follow the sound again (they lagged since 0.10.1).
+- Shared FaseGroove code now comes from the common module; no change to saved projects.
+
 ## [0.10.1] - 2026-10-24
 
 - The groove is built off the audio thread and swapped in: changing a setting no longer allocates memory on the audio thread.

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(FaseGrooveGuitar VERSION 0.10.1 LANGUAGES C CXX)
+project(FaseGrooveGuitar VERSION 0.10.2 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -26,6 +26,7 @@ set_target_properties(fgg_engine PROPERTIES POSITION_INDEPENDENT_CODE ON)
 if(FGG_BUILD_TESTS)
     enable_testing()
     add_executable(fgg_engine_tests tests/EngineTests.cpp)
+    target_include_directories(fgg_engine_tests PRIVATE ThirdParty/fasegroove-common)
     target_link_libraries(fgg_engine_tests PRIVATE fgg_engine)
     add_test(NAME engine COMMAND fgg_engine_tests)
 endif()
@@ -78,10 +79,13 @@ if(FGG_BUILD_PLUGIN)
     target_sources(FaseGrooveGuitar PRIVATE
         Source/PluginProcessor.cpp
         Source/PluginEditor.cpp
-        Source/Branding.cpp
-        Source/Localisation.cpp
-        Source/Updater.cpp
-        Source/CircleOfFifths.cpp)
+        Source/Product.cpp
+        # The family's shared module, vendored by fasegroove/scripts/sync.sh (do not edit here).
+        ThirdParty/fasegroove-common/CircleOfFifths.cpp
+        ThirdParty/fasegroove-common/Branding.cpp
+        ThirdParty/fasegroove-common/Localisation.cpp
+        ThirdParty/fasegroove-common/Updater.cpp)
+    target_include_directories(FaseGrooveGuitar PUBLIC ThirdParty/fasegroove-common)
 
     target_compile_definitions(FaseGrooveGuitar PUBLIC
         JUCE_WEB_BROWSER=0

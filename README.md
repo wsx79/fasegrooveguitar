@@ -181,7 +181,9 @@ Source/engine/GrooveEngine.*  the sequencer: chords per bar, strums, swing, huma
 Source/GuideGuitar.h          the synthesized guide guitar (plucked strings)
 Source/PluginProcessor.*      parameters, tempo sync, MIDI in (held chords) / out, clip export, user grid
 Source/PluginEditor.*         user interface: grid, chord slots, views, song window, options
-Source/Branding.*             logo, name, links
+Source/Product.cpp            name, links and texts of this product for the shared module
+ThirdParty/fasegroove-common/ shared family module (updater, translations, logo, theme, circle of fifths),
+                              copied from the fasegroove repo by its scripts/sync.sh: edit it there
 tests/EngineTests.cpp         engine tests (no JUCE dependency)
 tests/PluginTests.cpp         plug-in tests: state, grid, chords, MIDI / audio export, transport, MIDI in
 ```

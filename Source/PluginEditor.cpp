@@ -2874,6 +2874,24 @@ void GrooveOverview::refresh()
     repaint();
 }
 
+juce::Rectangle<int> GrooveOverview::stepColumn (int step) const
+{
+    const int steps = juce::jmax (1, pattern.length());
+    const float label = 64.0f, cellW = ((float) getWidth() - label) / (float) steps;
+    if (! juce::isPositiveAndBelow (step, steps))
+        return {};
+    return juce::Rectangle<float> (label + cellW * (float) step, 0.0f, cellW, (float) getHeight()).getSmallestIntegerContainer().expanded (1, 0);
+}
+
+void GrooveOverview::setPlayStep (int step)
+{
+    if (step == playStep)
+        return;
+    repaint (stepColumn (playStep));
+    playStep = step;
+    repaint (stepColumn (playStep));
+}
+
 void GrooveOverview::paint (juce::Graphics& g)
 {
     const int steps = juce::jmax (1, pattern.length());
@@ -4044,6 +4062,8 @@ void FaseGrooveGuitarEditor::timerCallback()
 
     if (slowTick)
         overview.refresh();
+    else
+        overview.setPlayStep (processor.uiStep.load());   // the light 30 times a second, as the sound
     miniMixer.refresh();
     const bool playingNow = processor.previewOn.load();
     editOverlay.playButton.setIcon (playingNow ? IconButton::Icon::pause : IconButton::Icon::play);
