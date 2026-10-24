@@ -238,6 +238,7 @@ FaseGrooveGuitarProcessor::FaseGrooveGuitarProcessor()
     : AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
       apvts (*this, nullptr, "FaseGrooveGuitar", createLayout())
 {
+    rawParams.cache (apvts);
     for (auto& lane : userGrid)
         for (auto& c : lane)
             c = '.';
@@ -318,13 +319,6 @@ void FaseGrooveGuitarProcessor::prepareToPlay (double sampleRate, int samplesPer
 juce::AudioProcessorEditor* FaseGrooveGuitarProcessor::createEditor()
 {
     return new FaseGrooveGuitarEditor (*this);
-}
-
-float FaseGrooveGuitarProcessor::raw (juce::StringRef id) const
-{
-    if (auto* v = apvts.getRawParameterValue (id))
-        return v->load();
-    return 0.0f;
 }
 
 void FaseGrooveGuitarProcessor::setParameterFromUI (const juce::String& id, float plainValue)

@@ -4,6 +4,10 @@
 
 Tutte le modifiche importanti di **Fase Groove Guitar**.
 
+## [0.10.4] - 2026-10-24
+
+- Interno più leggero: parametri letti da un'unica tabella condivisa, timer con TimedCallback di JUCE (modulo comune FaseGroove). Suono invariato.
+
 ## [0.10.3] - 2026-10-24
 
 - I preset di genere e il Random totale non abbassano più il volume della chitarra a circa -27 dB: la manopola Volume mantiene il tuo livello e il plugin si sente anche da solo.

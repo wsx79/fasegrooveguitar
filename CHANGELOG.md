@@ -4,6 +4,10 @@
 
 All notable changes to **Fase Groove Guitar**.
 
+## [0.10.4] - 2026-10-24
+
+- Lighter internals: parameters read through one shared table, timers on JUCE's TimedCallback (shared FaseGroove module). Sound unchanged.
+
 ## [0.10.3] - 2026-10-24
 
 - Genre presets and Total random no longer drop the guitar volume to about -27 dB: the Volume knob keeps your level, so the plugin is audible on its own.
