@@ -11,7 +11,7 @@
 
 #include <array>
 #include <atomic>
-#include <functional>
+#include <memory>
 
 /** What a grid-cell menu id does. Chance "Always" is id 200; rolls start at 201. */
 struct StepMenuChoice
@@ -160,7 +160,6 @@ public:
     int stepVelocity (int lane, int step) const;
     void setStepVelocity (int lane, int step, int level);
     void resetStepVelocities (int lane = -1);   // one lane, or all (-1)
-    bool hasStepVelocities() const;
     /** The velocity a displayed step plays at (set by hand, or automatic from its symbol). */
     int effectiveVelocity (int lane, int step) const;
 
@@ -176,7 +175,6 @@ public:
     void clearCustomFill();
     /** Starts the custom fill from what a fill style plays (and makes Custom the fill style). */
     void customFillFromStyle (int style);
-    bool hasCustomFill() const;
 
     // The feel of each lane (MIXER): its push / pull and its share of the swing.
     static juce::StringArray timingFeelNames();
@@ -433,7 +431,42 @@ private:
     juce::MidiFile midiFromEvents (const std::vector<fgg::NoteEvent>&, double beats,
                                    const std::vector<fgg::GrooveEngine::Marker>*, ClipPart, const juce::String& name) const;
 
+    /** Objects replaced while the audio thread may still use them: kept here until nobody else
+        holds them, then freed on the message thread (never on the audio thread, mid-block). */
+    template <typename T>
+    struct RetireBin : private juce::Timer
+    {
+        RetireBin() { startTimer (1000); }
+        ~RetireBin() override { stopTimer(); }
+        void retire (std::shared_ptr<const T> old)
+        {
+            if (old == nullptr)
+                return;
+            const juce::ScopedLock lock (mutex);
+            held.push_back (std::move (old));
+        }
+        void timerCallback() override
+        {
+            const juce::ScopedLock lock (mutex);
+            held.erase (std::remove_if (held.begin(), held.end(), [] (const auto& p) { return p.use_count() <= 1; }), held.end());
+        }
+        juce::CriticalSection mutex;
+        std::vector<std::shared_ptr<const T>> held;
+    };
+
     fgg::GrooveEngine engine;
+    // The groove worked out ahead on the message thread (the audio thread only reads it), and the
+    // old ones kept until the audio thread has let go of them.
+    std::shared_ptr<const fgg::GrooveEngine::Prepared> preparedPattern;
+    RetireBin<fgg::GrooveEngine::Prepared> retiredPatterns;
+    void preparePattern();
+    struct PatternTimer : juce::Timer
+    {
+        explicit PatternTimer (FaseGrooveGuitarProcessor& p) : owner (p) {}
+        void timerCallback() override { owner.preparePattern(); }
+        FaseGrooveGuitarProcessor& owner;
+    };
+    PatternTimer patternTimer { *this };
     std::vector<fgg::NoteEvent> events;
     juce::MidiBuffer outMidi;
     std::array<int, 128> noteChannels {};   // channel used by each generated note-on

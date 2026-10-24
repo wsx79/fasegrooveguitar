@@ -4,6 +4,11 @@
 
 Tutte le modifiche importanti di **Fase Groove Guitar**.
 
+## [0.10.1] - 2026-10-24
+
+- Il groove si prepara fuori dal thread audio e poi viene sostituito: cambiare un'impostazione non alloca più memoria nel thread audio.
+- Editor più leggero: ridisegni e ricostruzioni solo quando cambia qualcosa, preset indicizzati per genere, codice inutilizzato rimosso. Il suono non cambia.
+
 ## [0.10.0] - 2026-10-23
 
 - Groove casuali più vari: semi vicini non danno più copie quasi uguali, il dado su una corsia varia la seconda battuta, Jackin' Piano aggiunge spinte in sedicesimi, '90s ottave sui battiti, Funky & Disco sedicesimi stile Nile e ottave disco, Gospel lick in ottavi, Dance ottave; gli scratch fitti lasciano dei buchi.

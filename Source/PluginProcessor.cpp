@@ -269,10 +269,27 @@ FaseGrooveGuitarProcessor::FaseGrooveGuitarProcessor()
     resetSong();
     appliedKey = juce::roundToInt (raw (ParamIDs::key));
     linkTimer.startTimer (150);
+    preparePattern();
+    patternTimer.startTimer (40);
+}
+
+void FaseGrooveGuitarProcessor::preparePattern()
+{
+    // The groove (and its turnaround) for the settings as they are now, built here so the audio
+    // thread never has to; the one it replaces is freed once the audio thread lets go of it.
+    const auto settings = currentSettings();
+    const auto current = std::atomic_load (&preparedPattern);
+    if (current != nullptr && fgg::GrooveEngine::samePattern (current->key, settings))
+        return;
+    auto next = std::make_shared<fgg::GrooveEngine::Prepared>();
+    fgg::GrooveEngine::prepare (*next, settings);
+    std::atomic_store (&preparedPattern, std::shared_ptr<const fgg::GrooveEngine::Prepared> (std::move (next)));
+    retiredPatterns.retire (current);
 }
 
 FaseGrooveGuitarProcessor::~FaseGrooveGuitarProcessor()
 {
+    patternTimer.stopTimer();
     linkTimer.stopTimer();
     leadMode = false;   // a linked piano plays its whole pattern again
     writeLead();
@@ -621,15 +638,6 @@ void FaseGrooveGuitarProcessor::clearCustomFill()
             c = '.';
 }
 
-bool FaseGrooveGuitarProcessor::hasCustomFill() const
-{
-    for (const auto& lane : customFill)
-        for (const auto& c : lane)
-            if (fgg::isHit (c.load()))
-                return true;
-    return false;
-}
-
 void FaseGrooveGuitarProcessor::customFillFromStyle (int style)
 {
     if (! juce::isPositiveAndBelow (style, fgg::numFillStyles) || style == (int) fgg::FillStyle::custom)
@@ -736,17 +744,6 @@ void FaseGrooveGuitarProcessor::randomizeVelocities (int lane)
     for (int step = 0; step < steps(); ++step)
         if (const int v = stepVelocity (lane, step); v > 0)
             setStepVelocity (lane, step, juce::jlimit (1, 127, v + r.nextInt ({ -9, 10 })));
-}
-
-bool FaseGrooveGuitarProcessor::hasStepVelocities() const
-{
-    if (juce::roundToInt (raw (ParamIDs::pattern)) != fgg::userPatternIndex())
-        return false;
-    for (const auto& lane : userVelocity)
-        for (const auto& v : lane)
-            if (v.load() > 0)
-                return true;
-    return false;
 }
 
 bool FaseGrooveGuitarProcessor::isAudioFile (const juce::File& file)
@@ -1194,7 +1191,10 @@ void FaseGrooveGuitarProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
         if (! wasRunning || std::abs (startPpq - expectedNextPpq) > 0.05)
             engine.allNotesOff (startPpq, events);   // start, loop or jump
 
+        const auto ready = std::atomic_load (&preparedPattern);   // the message thread keeps it alive
+        engine.setPrepared (ready.get());
         engine.render (startPpq, startPpq + blockBeats + linkCorrection, settings, events);
+        engine.setPrepared (nullptr);
         expectedNextPpq = internalPpq = startPpq + blockBeats + linkCorrection;
 
         const auto step = (long long) std::floor (startPpq / fgg::stepLength);

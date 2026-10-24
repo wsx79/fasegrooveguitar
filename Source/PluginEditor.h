@@ -333,7 +333,7 @@ private:
     juce::Rectangle<float> card() const;
     juce::Rectangle<float> genreBounds (int genre) const;
     juce::Rectangle<float> tileBounds (int index) const;
-    std::vector<int> groovesOf (int genre) const;
+    const std::vector<int>& groovesOf (int genre) const;
     void pick (int pattern);
 
     FaseGrooveGuitarProcessor& processor;
@@ -466,10 +466,12 @@ public:
     explicit MiniMixer (FaseGrooveGuitarProcessor&);
     void paint (juce::Graphics&) override;
     void resized() override;
+    void refresh();   // redraws when a lane's mute changes
 
 private:
     juce::Rectangle<int> strip (int lane) const;
     FaseGrooveGuitarProcessor& processor;
+    std::uint32_t mutedShown = 0;
     juce::OwnedArray<juce::Slider> faders;
     juce::OwnedArray<juce::AudioProcessorValueTreeState::SliderAttachment> attachments;
 };
@@ -644,6 +646,9 @@ private:
     juce::String lastSnapshot;
     int snapshotTicks = 0;
     int uiTicks = 0;
+    // What the timer last showed (rebuilt only when it changes).
+    int shownKey = -1, shownScale = -1, shownLanguage = -1, browserPattern = -1;
+    juce::String shownKeyText, shownNotes, shownLength;
 
 public:
     /** As in Fase Groove Piano: while a clip is dragged the window shrinks to a small strip, so

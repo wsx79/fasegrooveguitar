@@ -2067,16 +2067,12 @@ juce::Rectangle<float> GrooveBrowser::tileBounds (int index) const
     return { area.getX() + (w + 12.0f) * (float) (index % 3), area.getY() + (h + 10.0f) * (float) (index / 3), w, h };
 }
 
-std::vector<int> GrooveBrowser::groovesOf (int g) const
+const std::vector<int>& GrooveBrowser::groovesOf (int g) const
 {
-    std::vector<int> list;
-    const auto& presets = fgg::guitarPatterns();
+    static const std::vector<int> yourBeats { fgg::randomPatternIndex(), fgg::userPatternIndex() };
     if (g >= (int) fgg::grooveCategories().size())
-        return { fgg::randomPatternIndex(), fgg::userPatternIndex() };
-    for (size_t i = 0; i < presets.size(); ++i)
-        if (presets[i].category == fgg::grooveCategories()[(size_t) g])
-            list.push_back ((int) i);
-    return list;
+        return yourBeats;
+    return fgg::patternsOfCategory (g);
 }
 
 void GrooveBrowser::show()
@@ -2142,7 +2138,8 @@ void GrooveBrowser::paint (juce::Graphics& g)
 
     // Grooves of the genre, with a picture of their rhythm.
     const int current = juce::roundToInt (processor.raw (ParamIDs::pattern));
-    const auto list = groovesOf (genre);
+    const auto& list = groovesOf (genre);
+    fgg::GuitarSettings s = processor.currentSettings();
     for (int k = 0; k < (int) list.size(); ++k)
     {
         const int index = list[(size_t) k];
@@ -2153,7 +2150,6 @@ void GrooveBrowser::paint (juce::Graphics& g)
         g.setColour (on ? Palette::accent : Palette::panelEdge);
         g.drawRoundedRectangle (r.reduced (0.5f), 6.0f, on ? 2.0f : 1.0f);
 
-        fgg::GuitarSettings s = processor.currentSettings();
         s.pattern = index;
         auto pattern = fgg::GrooveEngine::basePattern (s);
         auto inner2 = r.reduced (10.0f, 7.0f);
@@ -2205,7 +2201,7 @@ void GrooveBrowser::mouseDown (const juce::MouseEvent& e)
             repaint();
             return;
         }
-    const auto list = groovesOf (genre);
+    const auto& list = groovesOf (genre);
     for (int k = 0; k < (int) list.size(); ++k)
         if (tileBounds (k).contains (e.position))
         {
@@ -2219,7 +2215,7 @@ void GrooveBrowser::mouseDown (const juce::MouseEvent& e)
 void GrooveBrowser::mouseMove (const juce::MouseEvent& e)
 {
     int now = -1;
-    const auto list = groovesOf (genre);
+    const auto& list = groovesOf (genre);
     for (int k = 0; k < (int) list.size(); ++k)
         if (tileBounds (k).contains (e.position))
             now = k;
@@ -2237,7 +2233,7 @@ bool GrooveBrowser::keyPressed (const juce::KeyPress& key)
         setVisible (false);
         return true;
     }
-    const auto list = groovesOf (genre);
+    const auto& list = groovesOf (genre);
     if (list.empty())
         return false;
     const int current = juce::roundToInt (processor.raw (ParamIDs::pattern));
@@ -2917,6 +2913,7 @@ void GrooveOverview::paint (juce::Graphics& g)
 
 MiniMixer::MiniMixer (FaseGrooveGuitarProcessor& p) : processor (p)
 {
+    Localisation::bind (*this, [this] { repaint(); });   // the lane names
     for (int l = 0; l < fgg::numLanes; ++l)
     {
         auto* f = faders.add (new juce::Slider (juce::Slider::LinearVertical, juce::Slider::NoTextBox));
@@ -2941,6 +2938,20 @@ void MiniMixer::resized()
 {
     for (int l = 0; l < fgg::numLanes; ++l)
         faders[l]->setBounds (strip (l).reduced (6, 0).withTrimmedBottom (15));
+}
+
+void MiniMixer::refresh()
+{
+    // The labels dim with a lane's mute: redrawn only when one changes.
+    std::uint32_t mask = 0;
+    for (int l = 0; l < fgg::numLanes; ++l)
+        if (processor.isLaneMuted (l))
+            mask |= 1u << l;
+    if (mask != mutedShown)
+    {
+        mutedShown = mask;
+        repaint();
+    }
 }
 
 void MiniMixer::paint (juce::Graphics& g)
@@ -3332,6 +3343,8 @@ FaseGrooveGuitarEditor::FaseGrooveGuitarEditor (FaseGrooveGuitarProcessor& p)
     mainMyGrooves.onClick = [this] { if (myGroovesButton.onClick) myGroovesButton.onClick(); };
     mainImport.onClick    = [this] { if (importButton.onClick) importButton.onClick(); };
     mainTemplate.onClick  = [this] { if (templateButton.onClick) templateButton.onClick(); };
+    mainTemplate.setColour (juce::TextButton::buttonOnColourId, Palette::accent.darker (0.35f));
+    templateButton.setColour (juce::TextButton::buttonOnColourId, Palette::accent.darker (0.35f));
     mainClear.onClick     = [this] { if (clearButton.onClick) clearButton.onClick(); };
     Localisation::bind (mainGrooveTab, [this]
     {
@@ -3996,12 +4009,7 @@ void FaseGrooveGuitarEditor::refreshKitPanel()
 void FaseGrooveGuitarEditor::stepGroove (int delta)
 {
     // Through the menu's order (by genre).
-    std::vector<int> order;
-    const auto& presets = fgg::guitarPatterns();
-    for (const auto* category : fgg::grooveCategories())
-        for (size_t i = 0; i < presets.size(); ++i)
-            if (presets[i].category == category)
-                order.push_back ((int) i);
+    const auto& order = fgg::patternsByCategory();
     const int current = juce::roundToInt (processor.raw (ParamIDs::pattern));
     auto it = std::find (order.begin(), order.end(), current);
     int index = it == order.end() ? 0 : (int) (it - order.begin()) + delta;
@@ -4036,7 +4044,7 @@ void FaseGrooveGuitarEditor::timerCallback()
 
     if (slowTick)
         overview.refresh();
-    miniMixer.repaint();
+    miniMixer.refresh();
     const bool playingNow = processor.previewOn.load();
     editOverlay.playButton.setIcon (playingNow ? IconButton::Icon::pause : IconButton::Icon::play);
     editOverlay.playButton.setToggleState (playingNow, juce::dontSendNotification);
@@ -4060,14 +4068,19 @@ void FaseGrooveGuitarEditor::timerCallback()
         // KEY shows the key itself: "KEY  A Dorian".
         const int key = juce::roundToInt (processor.raw (ParamIDs::key));
         const int scale = juce::roundToInt (processor.raw (ParamIDs::scale));
-        const auto text = tr ("KEY") + "  " + fgg::pitchClassName (key) + " " + tr (fgg::scaleName (scale));
-        if (keyLinkButton.getButtonText() != text)
-            keyLinkButton.setButtonText (text);
+        const int language = (int) Localisation::current();
+        if (key != shownKey || scale != shownScale || language != shownLanguage)
+        {
+            shownKeyText = tr ("KEY") + "  " + fgg::pitchClassName (key) + " " + tr (fgg::scaleName (scale));
+            shownKey = key;
+            shownScale = scale;
+            shownLanguage = language;
+        }
+        if (keyLinkButton.getButtonText() != shownKeyText)
+            keyLinkButton.setButtonText (shownKeyText);
     }
     templateButton.setToggleState (processor.hasGrooveTemplate(), juce::dontSendNotification);
     mainTemplate.setToggleState (processor.hasGrooveTemplate(), juce::dontSendNotification);
-    mainTemplate.setColour (juce::TextButton::buttonOnColourId, Palette::accent.darker (0.35f));
-    templateButton.setColour (juce::TextButton::buttonOnColourId, Palette::accent.darker (0.35f));
 
     const int step = processor.uiStep.load();
     if (slowTick)
@@ -4081,17 +4094,21 @@ void FaseGrooveGuitarEditor::timerCallback()
 
     // The groove's name on its button.
     {
-        const auto settings = processor.currentSettings();
-        const auto name = settings.pattern == fgg::userPatternIndex() ? tr ("User pattern")
-                        : settings.pattern == fgg::randomPatternIndex() ? tr ("Random groove")
-                                                                      : juce::String (fgg::GrooveEngine::basePattern (settings).name);
+        const int pattern = juce::roundToInt (processor.raw (ParamIDs::pattern));
+        const auto& presets = fgg::guitarPatterns();
+        const auto name = pattern == fgg::userPatternIndex() ? tr ("User pattern")
+                        : pattern == fgg::randomPatternIndex() ? tr ("Random groove")
+                                                               : juce::String (presets[(size_t) juce::jlimit (0, (int) presets.size() - 1, pattern)].name);
         if (grooveButton.getButtonText() != name)
             grooveButton.setButtonText (name);
-        if (browser.isVisible())
+        // The browser's pictures follow the groove's settings: redrawn when the groove changes,
+        // else with the slower refresh.
+        if (browser.isVisible() && (slowTick || pattern != browserPattern))
             browser.repaint();
+        browserPattern = pattern;
     }
 
-    const bool playing = processor.previewOn.load();
+    const bool playing = playingNow;
     playButton.setIcon (playing ? IconButton::Icon::pause : IconButton::Icon::play);
     playButton.setToggleState (playing || step >= 0, juce::dontSendNotification);
     {
@@ -4104,8 +4121,17 @@ void FaseGrooveGuitarEditor::timerCallback()
             dawTempo.setText (juce::String (processor.hostBpm.load(), 1) + " BPM  " + tr ("(DAW)"), juce::dontSendNotification);
     }
     fullScreenButton.setIcon (isFullScreen() ? IconButton::Icon::exitFullScreen : IconButton::Icon::fullScreen);
-    dragTile.setSubtitle (notesBox.getText() + juce::String::fromUTF8 ("  \xc2\xb7  ") + lengthBox.getText());
-    fullScreenButton.setTooltip (tr (isFullScreen() ? "Exit full screen" : "Full screen"));
+    {
+        const auto notes = notesBox.getText(), length = lengthBox.getText();
+        if (notes != shownNotes || length != shownLength)
+        {
+            shownNotes = notes;
+            shownLength = length;
+            dragTile.setSubtitle (notes + juce::String::fromUTF8 ("  \xc2\xb7  ") + length);
+        }
+    }
+    if (const auto tip = tr (isFullScreen() ? "Exit full screen" : "Full screen"); fullScreenButton.getTooltip() != tip)
+        fullScreenButton.setTooltip (tip);
 
     // Undo history: a snapshot once a mouse edit has settled; a change pushes the previous one.
     if (pendingSnapshot > 0 && --pendingSnapshot == 0)

@@ -4,6 +4,11 @@
 
 All notable changes to **Fase Groove Guitar**.
 
+## [0.10.1] - 2026-10-24
+
+- The groove is built off the audio thread and swapped in: changing a setting no longer allocates memory on the audio thread.
+- Lighter editor: redraws and rebuilds only when something changes, presets indexed by genre, unused code removed. No change to the sound.
+
 ## [0.10.0] - 2026-10-23
 
 - Random grooves more varied: nearby seeds no longer give near copies, single-lane dice vary the second bar, Jackin' Piano adds 16th pushes, '90s octaves on the beats, Funky & Disco Nile-style 16ths and disco octaves, Gospel 8th-note licks, Dance octaves; busy scratches leave holes.
