@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(FaseGrooveGuitar VERSION 0.10.4 LANGUAGES C CXX)
+project(FaseGrooveGuitar VERSION 0.10.5 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -84,7 +84,9 @@ if(FGG_BUILD_PLUGIN)
         ThirdParty/fasegroove-common/CircleOfFifths.cpp
         ThirdParty/fasegroove-common/Branding.cpp
         ThirdParty/fasegroove-common/Localisation.cpp
-        ThirdParty/fasegroove-common/Updater.cpp)
+        ThirdParty/fasegroove-common/Updater.cpp
+        ThirdParty/fasegroove-common/EditorWidgets.cpp
+        ThirdParty/fasegroove-common/UpdateOverlay.cpp)
     target_include_directories(FaseGrooveGuitar PUBLIC ThirdParty/fasegroove-common)
 
     target_compile_definitions(FaseGrooveGuitar PUBLIC

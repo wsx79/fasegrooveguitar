@@ -4,7 +4,9 @@
 #pragma once
 
 #include "Branding.h"
+#include "EditorWidgets.h"
 #include "Localisation.h"
+#include "UpdateOverlay.h"
 #include "Updater.h"
 #include "PluginProcessor.h"
 #include "CircleOfFifths.h"
@@ -21,61 +23,15 @@ juce::Colour laneColour (int lane);
 //==============================================================================
 using GrooveLookAndFeel = FamilyLookAndFeel;
 
-//==============================================================================
-/** A flat button with a drawn icon (and optional text): transport, dice, undo, locks... */
-class IconButton : public juce::Button
-{
-public:
-    enum class Icon { none, play, pause, stop, rewind, dice, undo, redo, gear, close, fullScreen, exitFullScreen,
-                      lock, unlock, left, right, song, folder };
-
-    explicit IconButton (Icon i = Icon::none) : juce::Button ({}), icon (i) {}
-    void setIcon (Icon i) { if (i != icon) { icon = i; repaint(); } }
-    void paintButton (juce::Graphics&, bool highlighted, bool down) override;
-    static void drawIcon (juce::Graphics&, Icon, juce::Rectangle<float>, juce::Colour);
-
-    juce::Colour onColour { Palette::accent };
-    juce::Colour iconColour;   // when set: the icon's own colour while off (the dice are amber)
-    bool primary = false;      // filled with onColour even when off (the main action of a panel)
-
-private:
-    Icon icon;
-};
-
-//==============================================================================
-/** Rotary knob with a caption under it. */
-class Knob : public juce::Component
-{
-public:
-    Knob (juce::AudioProcessorValueTreeState&, const juce::String& paramId, const juce::String& caption);
-    void resized() override;
-    void setTip (const juce::String& tip) { Localisation::bindTip (slider, tip); }
-
-private:
-    juce::Slider slider;
-    juce::Label label;
-    juce::AudioProcessorValueTreeState::SliderAttachment attachment;
-};
-
-/** A drop-down menu for a parameter, with a caption above it (or none). The items can be grouped
-    under headings in any order: an item's id is always "parameter index + 1". */
-class ParamCombo : public juce::Component
-{
-public:
-    ParamCombo (juce::AudioProcessorValueTreeState&, const juce::String& paramId, const juce::String& caption);
-    void resized() override;
-
-    /** Re-reads the parameter (call it a few times a second). */
-    void refresh();
-    juce::ComboBox& comboBox() noexcept { return box; }
-    void setTip (const juce::String& tip) { Localisation::bindTip (box, tip); }
-
-private:
-    juce::ComboBox box;
-    juce::Label label;
-    juce::RangedAudioParameter* parameter = nullptr;
-    bool hasCaption = true;
-};
+// The widgets shared by the Fase Groove editors (EditorWidgets.h, UpdateOverlay.h).
+using FaseGroove::IconButton;
+using FaseGroove::Knob;
+using FaseGroove::ParamCombo;
+using FaseGroove::DragTile;
+using FaseGroove::UpdateOverlay;
+using FaseGroove::showInMenu;
+using FaseGroove::pickedFromMenu;
+using FaseGroove::styleCaption;
 
 //==============================================================================
 /** The rhythm grid: one row per lane (with its die), 32 steps (two bars). */
@@ -187,27 +143,6 @@ private:
 };
 
 //==============================================================================
-/** Drag me into the DAW: writes the MIDI clip(s) and starts an external file drag. */
-class DragTile : public juce::Component, public juce::SettableTooltipClient
-{
-public:
-    DragTile (juce::String titleText = "DRAG MIDI TO DAW", juce::String subtitleText = "drag this tile onto a track")
-        : title (std::move (titleText)), subtitle (std::move (subtitleText)) {}
-    std::function<juce::StringArray()> createFiles;
-    bool filled = false;   // the big orange tile of the export panel
-    void setSubtitle (const juce::String& s) { if (s != subtitle) { subtitle = s; repaint(); } }
-    void paint (juce::Graphics&) override;
-    void mouseDrag (const juce::MouseEvent&) override;
-    void mouseUp (const juce::MouseEvent&) override { dragging = false; repaint(); }
-    void mouseEnter (const juce::MouseEvent&) override { repaint(); }
-    void mouseExit (const juce::MouseEvent&) override { repaint(); }
-
-private:
-    juce::String title, subtitle;
-    bool dragging = false;
-};
-
-//==============================================================================
 /** The song window: bars, own variation and fill of each section; drag or save the whole song,
     one section, or every section as its own clip. */
 class SongOverlay : public juce::Component
@@ -274,24 +209,6 @@ private:
     juce::Label languageLabel, sizeLabel;
     juce::ComboBox languageBox, sizeBox;
     juce::ToggleButton tipsToggle, updatesToggle;
-};
-
-//==============================================================================
-/** "A new version is ready": what's new (the changelog) and the user confirms the install. */
-class UpdateOverlay : public juce::Component
-{
-public:
-    UpdateOverlay();
-    void show (const Updater::Result&);
-    void refreshText();
-    void paint (juce::Graphics&) override;
-    void resized() override;
-
-private:
-    juce::Rectangle<float> card() const { return getLocalBounds().toFloat().withSizeKeepingCentre (640.0f, 560.0f); }
-    Updater::Result result;
-    juce::TextEditor notes;
-    juce::TextButton installButton, laterButton, skipButton;
 };
 
 //==============================================================================
@@ -499,7 +416,8 @@ public:
     char brush = 'x';
 };
 
-class FaseGrooveGuitarEditor : public juce::AudioProcessorEditor, public juce::FileDragAndDropTarget, public juce::Timer
+class FaseGrooveGuitarEditor : public juce::AudioProcessorEditor, public juce::FileDragAndDropTarget, public juce::Timer,
+                               public FaseGroove::MiniModeHost
 {
 public:
     explicit FaseGrooveGuitarEditor (FaseGrooveGuitarProcessor&);
@@ -657,8 +575,8 @@ private:
 public:
     /** As in Fase Groove Piano: while a clip is dragged the window shrinks to a small strip, so
         the DAW's tracks are in view; it comes back when the clip is dropped. */
-    void enterMiniMode();
-    void exitMiniMode();
+    void enterMiniMode() override;
+    void exitMiniMode() override;
 private:
     struct MiniStrip : public juce::Component
     {

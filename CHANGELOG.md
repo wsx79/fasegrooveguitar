@@ -4,6 +4,10 @@
 
 All notable changes to **Fase Groove Guitar**.
 
+## [0.10.5] - 2026-10-24
+
+- Editor widgets and the update overlay now come from the shared FaseGroove module. Look and sound unchanged.
+
 ## [0.10.4] - 2026-10-24
 
 - Lighter internals: parameters read through one shared table, timers on JUCE's TimedCallback (shared FaseGroove module). Sound unchanged.

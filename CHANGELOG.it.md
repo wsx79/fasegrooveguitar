@@ -4,6 +4,10 @@
 
 Tutte le modifiche importanti di **Fase Groove Guitar**.
 
+## [0.10.5] - 2026-10-24
+
+- Widget dell'editor e finestra di aggiornamento ora vengono dal modulo comune FaseGroove. Aspetto e suono invariati.
+
 ## [0.10.4] - 2026-10-24
 
 - Interno più leggero: parametri letti da un'unica tabella condivisa, timer con TimedCallback di JUCE (modulo comune FaseGroove). Suono invariato.
