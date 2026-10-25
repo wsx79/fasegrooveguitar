@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(FaseGrooveGuitar VERSION 0.10.7 LANGUAGES C CXX)
+project(FaseGrooveGuitar VERSION 0.10.8 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -101,6 +101,7 @@ if(FGG_BUILD_PLUGIN)
         PRIVATE
             fgg_engine
             juce::juce_audio_utils
+            juce::juce_cryptography   # the updater checks downloads (SHA-256)
         PUBLIC
             juce::juce_recommended_config_flags
             juce::juce_recommended_lto_flags
@@ -110,7 +111,7 @@ if(FGG_BUILD_PLUGIN)
     if(FGG_BUILD_TESTS)
         juce_add_console_app(fgg_plugin_tests PRODUCT_NAME "Fase Groove Guitar Tests")
         target_sources(fgg_plugin_tests PRIVATE tests/PluginTests.cpp)
-        target_link_libraries(fgg_plugin_tests PRIVATE FaseGrooveGuitar juce::juce_audio_utils)
+        target_link_libraries(fgg_plugin_tests PRIVATE FaseGrooveGuitar juce::juce_audio_utils juce::juce_cryptography)
         add_test(NAME plugin COMMAND fgg_plugin_tests)
     endif()
 endif()

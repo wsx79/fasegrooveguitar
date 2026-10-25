@@ -4,6 +4,11 @@
 
 Tutte le modifiche importanti di **Fase Groove Guitar**.
 
+## [0.10.8] - 2026-10-25
+
+- Aggiornamenti più sicuri: il download viene controllato (SHA-256, percorsi dell'archivio, limiti di dimensione e tempo) e la versione installata resta intatta se qualcosa va storto. Stesso avviso e stessi pulsanti.
+- Traduzioni dal modulo comune FaseGroove, con ricerca più veloce. Testi invariati.
+
 ## [0.10.7] - 2026-10-24
 
 - La panoramica mostra le battute come suonano, fill e variazioni compresi.
