@@ -4,6 +4,11 @@
 
 Tutte le modifiche importanti di **Fase Groove Guitar**.
 
+## [0.10.9] - 2026-10-25
+
+- Cambiando lingua ogni menu mantiene la voce selezionata.
+- Collegamento tra i plugin FaseGroove dal modulo comune (stesso protocollo Link.xml).
+
 ## [0.10.8] - 2026-10-25
 
 - Aggiornamenti più sicuri: il download viene controllato (SHA-256, percorsi dell'archivio, limiti di dimensione e tempo) e la versione installata resta intatta se qualcosa va storto. Stesso avviso e stessi pulsanti.

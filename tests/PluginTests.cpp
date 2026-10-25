@@ -16,6 +16,7 @@
 #include "FamilyAudioEvidence.h"
 #include "TestSupport.h"
 #include "TestUpdater.h"
+#include "TestLink.h"
 #include "TestPlayHead.h"
 #include "FamilySoundProfiles.h"
 #include <set>
@@ -1026,6 +1027,7 @@ int main (int argc, char** argv)
     testGuideGuitar();
     testUpdater();
     FaseGrooveTests::checkUpdaterSafeguards();
+    FaseGrooveTests::checkLinkWithThreeInstances<FaseGrooveGuitarProcessor>();
     testTranslations();
     testLinkRoles();
     testEditor();

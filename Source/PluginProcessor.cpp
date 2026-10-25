@@ -1716,12 +1716,7 @@ juce::Array<juce::File> FaseGrooveGuitarProcessor::writeAudio (AudioExport mode,
 //==============================================================================
 juce::File FaseGrooveGuitarProcessor::linkFile()
 {
-    // Shared by every Fase Groove plug-in on this computer.
-    return juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
-#if JUCE_MAC
-        .getChildFile ("Application Support")
-#endif
-        .getChildFile ("Fase Groove").getChildFile ("Link.xml");
+    return FaseGroove::LinkClient::file();
 }
 
 juce::File FaseGrooveGuitarProcessor::leadFile()
@@ -1732,7 +1727,7 @@ juce::File FaseGrooveGuitarProcessor::leadFile()
 void FaseGrooveGuitarProcessor::setKeyLinked (bool on)
 {
     keyLinked = on;
-    linkShared = {};   // switched on: this key goes out to the others
+    link.shareAgain();   // switched on: this key goes out to the others
     updateLink();
 }
 
@@ -1772,8 +1767,7 @@ void FaseGrooveGuitarProcessor::setLinked (bool on)
         return;
     linkOn = on;
     writeLead();
-    linkSeenText = {};
-    linkShared = {};
+    link.reset();
     linkAnchor = -1.0;
 }
 
@@ -1845,96 +1839,38 @@ void FaseGrooveGuitarProcessor::updateLink()
         return;
     if (leadMode.load() && juce::Time::getMillisecondCounterHiRes() - leadWrittenAt > 2000.0)
         writeLead();
+    link.update();
+}
 
-    const auto file = linkFile();
-    const auto me = juce::String::toHexString ((juce::pointer_sized_int) this);
+juce::String FaseGrooveGuitarProcessor::linkGenreName (int genre) const
+{
+    return fgg::grooveCategories()[(size_t) juce::jlimit (0, (int) fgg::grooveCategories().size() - 1, genre)];
+}
 
-    // Someone else changed it: take what changed.
-    if (file.existsAsFile())
-        if (const auto text = linkPolled.read (file); text != linkSeenText)
-        {
-            linkSeenText = text;
-            if (auto xml = juce::parseXML (text); xml != nullptr && xml->getStringAttribute ("instance") != me)
-            {
-                // Their genre: the first groove of it (unless this one already is), and the dice's genre.
-                const int theirs = fgg::categoryIndex (xml->getStringAttribute ("genre").toStdString());
-                if (theirs >= 0 && theirs != currentGenre())
-                {
-                    const int pattern = juce::roundToInt (raw (ParamIDs::pattern));
-                    const auto& presets = fgg::guitarPatterns();
-                    if (juce::isPositiveAndBelow (pattern, (int) presets.size()))
-                        for (size_t i = 0; i < presets.size(); ++i)
-                            if (presets[i].category == fgg::grooveCategories()[(size_t) theirs])
-                            {
-                                setParameterFromUI (ParamIDs::pattern, (float) i);
-                                break;
-                            }
-                    setParameterFromUI (ParamIDs::genre, (float) theirs);
-                }
-                if (keyLinked.load() && xml->hasAttribute ("key"))   // the same key (the chords move the shortest way)
-                {
-                    if (xml->hasAttribute ("scale"))   // (a relative key keeps the chords where they are)
-                        setKeyAndScale (xml->getIntAttribute ("key"), xml->getIntAttribute ("scale"));
-                    else
-                        setKey (xml->getIntAttribute ("key"));
-                }
-                if (xml->hasAttribute ("swing"))
-                    setParameterFromUI (ParamIDs::swing, juce::jlimit (0.0f, 1.5f, (float) xml->getDoubleAttribute ("swing")));
-                if (xml->hasAttribute ("bpm"))
-                    setParameterFromUI (ParamIDs::tempo, juce::jlimit (60.0f, 180.0f, (float) xml->getDoubleAttribute ("bpm")));
-                if (xml->hasAttribute ("sync"))
-                    setParameterFromUI (ParamIDs::tempoSync, xml->getBoolAttribute ("sync") ? 1.0f : 0.0f);
-                if (xml->hasAttribute ("playing"))
-                {
-                    const double anchor = xml->getDoubleAttribute ("anchor", -1.0);
-                    if (xml->getBoolAttribute ("playing") && anchor >= 0.0)
-                    {
-                        linkAnchor = anchor;
-                        previewOn = true;
-                    }
-                    else
-                    {
-                        previewOn = false;
-                        previewFromStart = ! xml->getBoolAttribute ("paused");
-                        linkAnchor = -1.0;
-                    }
-                }
-                linkShared = localLinkState();
-                return;
-            }
-        }
-
-    // We changed it: tell the others. A new tempo while playing keeps the position on the clock.
-    auto now = localLinkState();
-    if (now.playing && now.anchor >= 0.0 && linkShared.bpm > 0.0f && std::abs (now.bpm - linkShared.bpm) >= 0.01f && ! now.sync)
+void FaseGrooveGuitarProcessor::followLinkedGroove (const juce::XmlElement& xml)
+{
+    // Their genre: the first groove of it (unless this one already is), and the dice's genre.
+    const int theirs = fgg::categoryIndex (xml.getStringAttribute ("genre").toStdString());
+    if (theirs >= 0 && theirs != currentGenre())
     {
-        const double t = juce::Time::getMillisecondCounterHiRes();
-        const double beat = (t - now.anchor) * linkShared.bpm / 60000.0;
-        linkAnchor = now.anchor = t - beat * 60000.0 / now.bpm;
+        const int pattern = juce::roundToInt (raw (ParamIDs::pattern));
+        const auto& presets = fgg::guitarPatterns();
+        if (juce::isPositiveAndBelow (pattern, (int) presets.size()))
+            for (size_t i = 0; i < presets.size(); ++i)
+                if (presets[i].category == fgg::grooveCategories()[(size_t) theirs])
+                {
+                    setParameterFromUI (ParamIDs::pattern, (float) i);
+                    break;
+                }
+        setParameterFromUI (ParamIDs::genre, (float) theirs);
     }
-    if (now.sameAs (linkShared))
-        return;
-
-    juce::XmlElement xml ("FaseGrooveLink");
-    xml.setAttribute ("from", JucePlugin_Name);
-    xml.setAttribute ("instance", me);
-    if (now.genre >= 0)
-        xml.setAttribute ("genre", fgg::grooveCategories()[(size_t) juce::jlimit (0, (int) fgg::grooveCategories().size() - 1, now.genre)]);
-    xml.setAttribute ("swing", now.swing);   // 0 straight, 1 a triplet shuffle (as Fase Groove Piano)
-    xml.setAttribute ("bpm", now.bpm);
-    xml.setAttribute ("sync", now.sync);
-    xml.setAttribute ("playing", now.playing);
-    xml.setAttribute ("paused", now.paused);
-    xml.setAttribute ("anchor", juce::String (now.anchor, 3));
-    if (now.key >= 0)
+    if (keyLinked.load() && xml.hasAttribute ("key"))   // the same key (the chords move the shortest way)
     {
-        xml.setAttribute ("key", now.key);
-        xml.setAttribute ("scale", now.scale);
+        if (xml.hasAttribute ("scale"))   // (a relative key keeps the chords where they are)
+            setKeyAndScale (xml.getIntAttribute ("key"), xml.getIntAttribute ("scale"));
+        else
+            setKey (xml.getIntAttribute ("key"));
     }
-    file.getParentDirectory().createDirectory();
-    if (xml.writeTo (file))
-        linkSeenText = xml.toString();   // what was just written: no need to read it back
-    linkShared = now;
 }
 
 //==============================================================================

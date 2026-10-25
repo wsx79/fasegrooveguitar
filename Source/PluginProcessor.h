@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "LinkClient.h"
 #include "LinkFile.h"
 #include "PlayClock.h"
 #include "RawParameters.h"
@@ -99,7 +100,8 @@ namespace ParamIDs
     inline juce::String laneSwing (int lane) { return "laneSwing" + juce::String (lane + 1); }   // the share of the swing a lane takes
 }
 
-class FaseGrooveGuitarProcessor : public juce::AudioProcessor
+class FaseGrooveGuitarProcessor : public juce::AudioProcessor,
+                                  private FaseGroove::LinkClient::Product
 {
 public:
     FaseGrooveGuitarProcessor();
@@ -412,26 +414,13 @@ private:
     std::atomic<int> liveRoot { 0 }, liveMask { 0 };
 
     std::atomic<bool> linkOn { false };
-    // What the linked plug-ins share: genre, swing, tempo, DAW sync and the play button's clock
-    // (anchor: the system time, in high-resolution ms, at which that clock was at beat 0).
-    struct LinkState
-    {
-        int genre = -2;
-        float swing = -1.0f, bpm = -1.0f;
-        bool sync = false, playing = false, paused = false;
-        double anchor = -1.0;
-        int key = -1, scale = -1;   // shared only with KEY on (-1: not shared)
-        bool sameAs (const LinkState& o) const noexcept
-        {
-            return genre == o.genre && key == o.key && scale == o.scale && std::abs (swing - o.swing) < 0.001f && std::abs (bpm - o.bpm) < 0.01f && sync == o.sync
-                && playing == o.playing && paused == o.paused && std::abs (anchor - o.anchor) < 1.0;
-        }
-    };
-    LinkState linkShared;                      // what the link file says (or what we wrote)
-    juce::String linkSeenText;
-    FaseGroove::PolledFile linkPolled;   // message thread (LinkFile.h)
+    using LinkState = FaseGroove::LinkState;
     std::atomic<double> linkAnchor { -1.0 };   // the shared clock while playing, -1 = none
-    LinkState localLinkState() const;
+    FaseGroove::LinkClient link { *this, previewOn, previewFromStart, linkAnchor, true };   // Link.xml (LinkClient.h)
+    LinkState localLinkState() const override;
+    juce::String linkGenreName (int genre) const override;
+    void followLinkedGroove (const juce::XmlElement& theirs) override;
+    void setLinkedParameter (const char* id, float plainValue) override { setParameterFromUI (id, plainValue); }
     int currentGenre() const;
     juce::TimedCallback linkTimer { [this] { followKeyParameter(); updateLink(); } };
     /** The key the chord slots are in: a key moved by the host (automation, a generic editor)
