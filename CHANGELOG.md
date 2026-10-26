@@ -4,6 +4,12 @@
 
 All notable changes to **Fase Groove Guitar**.
 
+## 0.10.10 — 2026-10-26
+
+- Pinned shared-module SHA and complete inventory checked offline and against its canonical source in CI; Lead included in default sync/check.
+- Translation catalogs checked for duplicate keys, including multiline entries; intentional common/product overrides remain supported.
+- Shared panel drawing replaces identical local helpers; layout, controls and musical generation remain unchanged.
+
 ## [0.10.9] - 2026-10-25
 
 - Changing the language keeps the selected item of every menu.
