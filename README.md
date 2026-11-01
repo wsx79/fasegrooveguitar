@@ -87,7 +87,7 @@ Development builds are under **[Actions](https://github.com/wsx79/fasegrooveguit
 |---|---|---|
 | Windows 10/11 (64-bit) | `FaseGrooveGuitar-Windows-Setup.exe` (installer, recommended) | VST3 + Standalone |
 | Windows 10/11 (64-bit) | `FaseGrooveGuitar-Windows.zip` | VST3 + Standalone (manual install) |
-| macOS 10.13+ (Intel & Apple Silicon) | `FaseGrooveGuitar-macOS.zip` | VST3 + AU + Standalone |
+| macOS 11+ (Intel & Apple Silicon) | `FaseGrooveGuitar-macOS.zip` | VST3 + AU + Standalone |
 | Linux | `FaseGrooveGuitar-Linux.zip` | VST3 + Standalone |
 
 To install, follow the [guide](docs/GUIDE.md#1-installation).

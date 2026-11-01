@@ -4,6 +4,11 @@
 
 Tutte le modifiche importanti di **Fase Groove Guitar**.
 
+## [0.10.11] — 2026-11-01
+
+- Corregge le build macOS che richiedevano il sistema del runner (macOS 26, oppure 15 per Arranger). Applica il target macOS 11 prima dell’inizializzazione dei compilatori, anche con cache CMake esistenti.
+- Verifica il minimo di sistema di entrambe le architetture Intel e Apple Silicon e i metadati dei bundle prima della firma; allinea la documentazione a macOS 11+.
+
 ## 0.10.10 — 2026-10-26
 
 - SHA e inventario completo del modulo comune verificati offline e contro la fonte canonica in CI; Lead incluso nel sync/check predefinito.

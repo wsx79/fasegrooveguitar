@@ -4,6 +4,11 @@
 
 All notable changes to **Fase Groove Guitar**.
 
+## [0.10.11] — 2026-11-01
+
+- Fix macOS builds incorrectly requiring the runner OS (macOS 26, or 15 for Arranger). Apply the macOS 11 deployment target before compiler initialization, including existing CMake caches.
+- Verify both Intel and Apple Silicon deployment targets and bundle metadata before signing; align the documented minimum to macOS 11+.
+
 ## 0.10.10 — 2026-10-26
 
 - Pinned shared-module SHA and complete inventory checked offline and against its canonical source in CI; Lead included in default sync/check.

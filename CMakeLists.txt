@@ -1,15 +1,18 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(FaseGrooveGuitar VERSION 0.10.10 LANGUAGES C CXX)
+# Set Apple platform settings before project() initializes compiler/cache defaults.
+# FORCE also repairs build directories configured with an empty or newer target.
+if(CMAKE_HOST_APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version" FORCE)
+    if(NOT CMAKE_OSX_ARCHITECTURES)
+        set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "Universal macOS binary" FORCE)
+    endif()
+endif()
+
+project(FaseGrooveGuitar VERSION 0.10.11 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-# Universal binary (Apple Silicon + Intel) on macOS
-if(APPLE AND NOT CMAKE_OSX_ARCHITECTURES)
-    set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "" FORCE)
-endif()
-set(CMAKE_OSX_DEPLOYMENT_TARGET "10.13" CACHE STRING "Minimum macOS version")
 
 option(FGG_BUILD_PLUGIN "Build the JUCE plug-in (needs JUCE)" ON)
 option(FGG_BUILD_TESTS  "Build the engine unit tests" ON)
@@ -54,6 +57,7 @@ if(FGG_BUILD_PLUGIN)
     endif()
 
     juce_add_plugin(FaseGrooveGuitar
+        PLIST_TO_MERGE "<plist><dict><key>LSMinimumSystemVersion</key><string>${CMAKE_OSX_DEPLOYMENT_TARGET}</string></dict></plist>"
         PRODUCT_NAME "Fase Groove Guitar"
         COMPANY_NAME "FS Pitch"
         BUNDLE_ID "com.fspitch.fasegrooveguitar"

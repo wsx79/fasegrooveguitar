@@ -25,7 +25,7 @@ $changes
 | System | File |
 |---|---|
 | Windows 10/11 (64-bit) | \`FaseGrooveGuitar-Windows.zip\` – VST3 + Standalone |
-| macOS 10.13+ (Intel & Apple Silicon) | \`FaseGrooveGuitar-macOS.zip\` – VST3 + AU + Standalone |
+| macOS 11+ (Intel & Apple Silicon) | \`FaseGrooveGuitar-macOS.zip\` – VST3 + AU + Standalone |
 | Linux | \`FaseGrooveGuitar-Linux.zip\` – VST3 + Standalone |
 
 User guide inside the zip: \`GUIDE.md\` (English) · \`GUIDA.md\` (Italiano).
