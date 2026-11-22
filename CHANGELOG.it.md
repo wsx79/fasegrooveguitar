@@ -4,6 +4,10 @@
 
 Tutte le modifiche importanti di **Fase Groove Guitar**.
 
+## Non ancora rilasciato
+
+- Ogni render di un brano è identico al campione: il rumore del plettro di ogni nota è inizializzato da nota e velocity.
+
 ## [0.10.11] — 2026-11-01
 
 - Corregge le build macOS che richiedevano il sistema del runner (macOS 26, oppure 15 per Arranger). Applica il target macOS 11 prima dell’inizializzazione dei compilatori, anche con cache CMake esistenti.

@@ -4,6 +4,10 @@
 
 All notable changes to **Fase Groove Guitar**.
 
+## Unreleased
+
+- Every render of a song is sample-identical: the pick noise of each note is seeded from the note and velocity.
+
 ## [0.10.11] — 2026-11-01
 
 - Fix macOS builds incorrectly requiring the runner OS (macOS 26, or 15 for Arranger). Apply the macOS 11 deployment target before compiler initialization, including existing CMake caches.
