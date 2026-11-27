@@ -4,6 +4,16 @@
 
 Tutte le modifiche importanti di **Fase Groove Guitar**.
 
+## [0.10.13] — 2026-11-27
+
+- La lane ROOT suona la fondamentale sulla corda bassa (suonava la nota più bassa della forma: la terza di un Cmaj7, la settima di un C7).
+- Un groove modificato tiene il genere in cui è stato scelto: voicing, lick, intro e fill restano.
+- L'arpeggio usa tutte e quattro le corde sugli ottavi (ne raggiungeva due).
+- Fill e turnaround si contano dall'inizio della sezione; il bass walk va verso la fondamentale dell'accordo successivo e arriva a mezzo tono; la corsa d'ottave arriva alla quinta propria dell'accordo (bemolle su m7b5).
+- CHORD COLOUR ricolora gli accordi sullo schermo (modifiche incluse) invece di ricaricare la progressione.
+- Nuovi tipi m(maj7), dim7 e 7b9; gli accordi possono durare più o meno di una battuta (condiviso con Fase Groove Arranger).
+- Le note di rilascio elencano solo questa versione, con l'installer Windows.
+
 ## [0.10.12] — 2026-11-22
 
 - Ogni render di un brano è identico al campione: il rumore del plettro di ogni nota è inizializzato da nota e velocity.

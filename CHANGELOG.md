@@ -4,6 +4,16 @@
 
 All notable changes to **Fase Groove Guitar**.
 
+## [0.10.13] — 2026-11-27
+
+- The ROOT lane plays the chord's root on the low string (it played the shape's lowest note: the 3rd of a Cmaj7, the 7th of a C7).
+- An edited groove keeps the genre it was chosen in: voicings, licks, intros and fills stay.
+- The arpeggio uses all four strings on 8ths (it only reached two).
+- Fills and turnarounds are counted from the section start; the bass walk heads for the next chord's root and lands a half step away; the octave run tops out on the chord's own fifth (flat on m7b5).
+- CHORD COLOUR recolours the chords on screen (your edits included) instead of reloading the progression.
+- New chord types m(maj7), dim7 and 7b9; chords can last other than a bar (shared with Fase Groove Arranger).
+- Release notes list only this version, with the Windows installer.
+
 ## [0.10.12] — 2026-11-22
 
 - Every render of a song is sample-identical: the pick noise of each note is seeded from the note and velocity.

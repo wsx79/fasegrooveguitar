@@ -283,6 +283,9 @@ GuitarPattern GrooveEngine::basePattern (const GuitarSettings& s)
     {
         GuitarPattern p;
         p.name = "User pattern";
+        // an edited groove keeps the genre it was chosen in: voicings, licks, intros and fills stay
+        if (s.randomGenre >= 0 && s.randomGenre < (int) grooveCategories().size())
+            p.category = grooveCategories()[(size_t) s.randomGenre];
         for (int l = 0; l < numLanes; ++l)
             p.lanes[(size_t) l].assign (s.user[(size_t) l].begin(), s.user[(size_t) l].end());
         fitPattern (p, length);
@@ -315,7 +318,7 @@ int GrooveEngine::loopLengthInSteps (const GuitarSettings& s) noexcept
     if (! s.useLiveChord)
     {
         // The chords come round after numChords bars (or fewer, when they repeat inside).
-        steps = lcm (steps, chordPeriod (s) * 16);
+        steps = lcm (steps, chordPeriod (s) * std::max (1, s.stepsPerChord));
     }
     if (s.variationEvery > 0)
         steps = lcm (steps, s.variationEvery * 16);
@@ -391,14 +394,18 @@ void GrooveEngine::collectStep (long long step, const GuitarSettings& s, const G
 {
     const long long bar = floorDiv (step, 16);
     const int stepInBar = mod (step, 16);
-    const auto chord = chordAt (s, bar);
-    const ChordVoicing& voicing = voicingAt (s, bar);
+    // one chord per stepsPerChord 16ths (16: a bar, as the plugin always played)
+    const auto chordSlot = floorDiv (step, std::max (1, s.stepsPerChord));
+    const auto chord = chordAt (s, chordSlot);
+    const ChordVoicing& voicing = voicingAt (s, chordSlot);
     // The chord of the next bar: the last 8th of a bar can push into it.
-    const auto nextChord = chordAt (s, bar + 1);
-    const ChordVoicing& nextVoicing = voicingAt (s, bar + 1);
+    const auto nextSlot = floorDiv (step + 2, std::max (1, s.stepsPerChord));
+    const auto nextChord = chordAt (s, nextSlot);
+    const ChordVoicing& nextVoicing = voicingAt (s, nextSlot);
 
     // Every N bars the last bar plays a variation of the groove (the turnaround).
-    const bool varied = s.variationEvery > 0 && mod (bar, s.variationEvery) == s.variationEvery - 1
+    // (counted from the section start, like the fills: a section's phrases end where its bars do)
+    const bool varied = s.variationEvery > 0 && mod (bar - s.sectionStartBar, s.variationEvery) == s.variationEvery - 1
                      && variation.length() == normal.length();
     const GuitarPattern& pattern = varied ? variation : normal;
     const int len = std::max (1, pattern.length());
@@ -416,7 +423,7 @@ void GrooveEngine::collectStep (long long step, const GuitarSettings& s, const G
     {
         if (s.forcedFillBar >= 0)
             return b == s.forcedFillBar && s.forcedFillStyle >= 0;
-        return s.fillEveryBars > 0 && sectionAllowsFills (s.section) && mod (b, s.fillEveryBars) == s.fillEveryBars - 1;
+        return s.fillEveryBars > 0 && sectionAllowsFills (s.section) && mod (b - s.sectionStartBar, s.fillEveryBars) == s.fillEveryBars - 1;
     };
     const bool fillBar = isFillBar (bar);
     const int fillGenre = categoryIndex (normal.category) >= 0 ? categoryIndex (normal.category) : s.randomGenre;
@@ -534,7 +541,7 @@ void GrooveEngine::collectStep (long long step, const GuitarSettings& s, const G
 
         const bool chordHit = isChordLane (lane);
         // A chord hit on the last 8th of a bar plays the chord coming next (the push).
-        const bool push = s.pushChanges && chordHit && stepInBar >= 14 && symbol != 'g' && ! (nextChord == chord);
+        const bool push = s.pushChanges && chordHit && mod (step, std::max (1, s.stepsPerChord)) >= std::max (1, s.stepsPerChord) - 2 && symbol != 'g' && ! (nextChord == chord);
         // Now and then (with Humanize) the last bar of the phrase answers with another top note.
         // The chance follows Humanize; a step keeps its choice for the whole phrase.
         const bool answer = human > 0.0 && phraseBar == 3
@@ -721,7 +728,9 @@ void GrooveEngine::collectStep (long long step, const GuitarSettings& s, const G
             case FillStyle::octaveRun:    // octaves climbing the chord into the next bar
             {
                 static constexpr int minorRun[] { 0, 3, 5, 7 }, majorRun[] { 0, 4, 5, 7 };
-                add ((int) Lane::octave, i == 15 ? 'X' : 'x', (minor ? minorRun : majorRun)[run], ramp, true);
+                // the chord's own fifth on top: flat on a (half-)diminished chord, sharp on an augmented one
+                const int fifth = ((chord.mask >> 7u) & 1u) ? 7 : ((chord.mask >> 6u) & 1u) ? 6 : ((chord.mask >> 8u) & 1u) ? 8 : 7;
+                add ((int) Lane::octave, i == 15 ? 'X' : 'x', run == 3 ? fifth : (minor ? minorRun : majorRun)[run], ramp, true);
                 break;
             }
             case FillStyle::scratchBuild:
@@ -753,7 +762,17 @@ void GrooveEngine::collectStep (long long step, const GuitarSettings& s, const G
             case FillStyle::bassWalk:     // the low string walks up to the next bar
             {
                 static constexpr int minorWalk[] { 0, 2, 3, 5 }, majorWalk[] { 0, 2, 4, 5 };
-                add ((int) Lane::root, i == 15 ? 'X' : 'x', (minor ? minorWalk : majorWalk)[run], ramp, true);
+                // into the next chord: when its root moves, the walk heads for it and lands a half step
+                // away (from below going up, from above going down); on the same chord it climbs the scale
+                const int move = mod (nextChord.root - chord.root, 12);
+                int offset = (minor ? minorWalk : majorWalk)[run];
+                if (move != 0)
+                {
+                    const int target = move > 6 ? move - 12 : move;
+                    const int approach = target > 0 ? target - 1 : target + 1;
+                    offset = (int) std::lround ((double) approach * run / 3.0);
+                }
+                add ((int) Lane::root, i == 15 ? 'X' : 'x', offset, ramp, true);
                 break;
             }
             case FillStyle::swellOut:     // half a bar held, then nothing

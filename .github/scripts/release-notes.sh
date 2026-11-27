@@ -5,7 +5,7 @@ set -euo pipefail
 version="${1#v}"
 
 changes=$(awk -v v="$version" '
-  /^## \[/ { if (found) exit; if (index($0, "## [" v "]") == 1) { found = 1; next } }
+  /^## / { if (found) exit; h = $0; sub(/^## \[?/, "", h); split(h, w, /[] ]/); if (w[1] == v) { found = 1; next } }
   found && /^\[[0-9]/ { exit }
   found { print }
 ' CHANGELOG.md)
@@ -24,7 +24,8 @@ $changes
 
 | System | File |
 |---|---|
-| Windows 10/11 (64-bit) | \`FaseGrooveGuitar-Windows.zip\` – VST3 + Standalone |
+| **Windows 10/11 (64-bit) – installer** | \`FaseGrooveGuitar-Windows-Setup.exe\` – choose VST3, Standalone or both |
+| Windows 10/11 (64-bit) – zip | \`FaseGrooveGuitar-Windows.zip\` – VST3 + Standalone |
 | macOS 11+ (Intel & Apple Silicon) | \`FaseGrooveGuitar-macOS.zip\` – VST3 + AU + Standalone |
 | Linux | \`FaseGrooveGuitar-Linux.zip\` – VST3 + Standalone |
 

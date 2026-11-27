@@ -42,7 +42,7 @@ bool isChordLane (int lane) noexcept
 //==============================================================================
 const char* chordTypeName (int type) noexcept
 {
-    static const char* names[] { "maj7", "m7", "7", "m9", "maj9", "9", "m11", "13", "7sus4", "6/9", "", "m", "m7b5", "dim", "aug" };
+    static const char* names[] { "maj7", "m7", "7", "m9", "maj9", "9", "m11", "13", "7sus4", "6/9", "", "m", "m7b5", "dim", "aug", "m(maj7)", "dim7", "7b9" };
     return type >= 0 && type < numChordTypes ? names[type] : "";
 }
 
@@ -71,6 +71,9 @@ unsigned chordTypeMask (int type) noexcept
         case ChordType::halfDim: return bits ({ 0, 3, 6, 10 });
         case ChordType::dim:     return bits ({ 0, 3, 6 });
         case ChordType::aug:     return bits ({ 0, 4, 8 });
+        case ChordType::mMaj7:   return bits ({ 0, 3, 7, 11 });
+        case ChordType::dim7:    return bits ({ 0, 3, 6, 9 });
+        case ChordType::dom7b9:  return bits ({ 0, 4, 7, 10, 13 });
         case ChordType::m7:
         default:                 return bits ({ 0, 3, 7, 10 });
     }
@@ -505,9 +508,11 @@ void laneNotes (Lane lane, const ChordTones& chord, const ChordVoicing& v, int s
             break;
         case Lane::arp:       // up and down four strings
         {
-            static constexpr int order[] { 0, 1, 2, 3, 2, 1 };
+            // on the 8ths (the even steps) up and down all four strings, 0 1 2 3 2 1 0 1; the 16ths in
+            // between make it a broken arpeggio (step % 6 on 8ths only ever reached two strings)
+            static constexpr int order[16] { 0, 2, 1, 3, 2, 3, 3, 1, 2, 0, 1, 2, 0, 2, 1, 3 };
             if (! v.four.empty())
-                out.add (v.four[std::min (v.four.size() - 1, order[step % 6])]);
+                out.add (v.four[std::min (v.four.size() - 1, order[((step % 16) + 16) % 16])]);
             break;
         }
         case Lane::lick:      // a phrase on the pentatonic. 0 is the preset line; the others follow a style.
@@ -544,7 +549,17 @@ void laneNotes (Lane lane, const ChordTones& chord, const ChordVoicing& v, int s
         }
         case Lane::root:
         default:
-            out.add (v.full.empty() ? bassRoot (chord) : v.full.front());
+        {   // the root on the low string: under the shape's lowest note (which may be its 3rd or 7th)
+            int r = bassRoot (chord);
+            if (! v.full.empty())
+            {
+                const int low = v.full.front();
+                r = low - mod12 (low - chord.root);
+                if (r < 40)
+                    r += 12;
+            }
+            out.add (r);
+        }
             break;
     }
     if (out.empty())

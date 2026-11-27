@@ -307,6 +307,7 @@ bool FaseGrooveGuitarProcessor::isBusesLayoutSupported (const BusesLayout& layou
 void FaseGrooveGuitarProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     guitar.prepare (sampleRate);
+    outMidi.ensureSize ((size_t) juce::jmax (8192, samplesPerBlock) * 8);   // the MIDI out of a block: no growing on the audio thread
     // Room for the largest blocks (offline rendering too): no growing on the audio thread.
     guideEvents.reserve ((size_t) juce::jmax (8192, samplesPerBlock / 2));
     reverbFx.setSampleRate (sampleRate);
@@ -806,6 +807,28 @@ void FaseGrooveGuitarProcessor::applyProgression (int index)
     setParameterFromUI (ParamIDs::scale, (float) fgg::progressions()[(size_t) index].scale);
     setChords (fgg::progressionChords (index, juce::roundToInt (raw (ParamIDs::key)), juce::roundToInt (raw (ParamIDs::chordColour))));
     appliedKey = juce::roundToInt (raw (ParamIDs::key));   // the chords are in this key now
+}
+
+void FaseGrooveGuitarProcessor::recolourChords()
+{
+    // Major, minor and dominant chords take the colour; the others (sus, 6/9, 11, 13, diminished,
+    // augmented, half-diminished) are a choice of their own and stay as they are.
+    using T = fgg::ChordType;
+    const int colour = juce::roundToInt (raw (ParamIDs::chordColour));
+    for (int i = 0; i < fgg::maxChords; ++i)
+    {
+        const auto c = chordAt (i);
+        int kind = -1;
+        switch ((T) c.type)
+        {
+            case T::major: case T::maj7: case T::maj9: kind = 0; break;
+            case T::minor: case T::m7: case T::m9:     kind = 1; break;
+            case T::dom7: case T::dom9:                kind = 2; break;
+            default: break;
+        }
+        if (kind >= 0)
+            setChord (i, fgg::codeChord (0, c.root + 12 * kind, colour));
+    }
 }
 
 void FaseGrooveGuitarProcessor::setChords (const std::vector<fgg::Chord>& chords)
@@ -1358,7 +1381,10 @@ void FaseGrooveGuitarProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     }
 
     samplesProcessed += numSamples;
-    midi.swapWith (outMidi);
+    // copied, not swapped: a swap would hand our reserved buffer to the host and keep the host's,
+    // which then grows (allocates) on the audio thread in the next block
+    midi.clear();
+    midi.addEvents (outMidi, 0, -1, 0);
 }
 
 //==============================================================================

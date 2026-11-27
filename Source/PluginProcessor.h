@@ -209,6 +209,8 @@ public:
     void setChord (int slot, fgg::Chord);
     /** The four chords of a progression, in the key. */
     void applyProgression (int index);
+    /** The current chords (edited ones included) with the CHORD COLOUR: triads, 7ths or 9ths on the same roots. */
+    void recolourChords();
     /** Sets the chords (and how many play). */
     void setChords (const std::vector<fgg::Chord>&);
     int chordCount() const;

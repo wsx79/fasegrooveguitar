@@ -2099,7 +2099,7 @@ ProgressionBrowser::ProgressionBrowser (FaseGrooveGuitarProcessor& p) : processo
         if (colourBox.getSelectedId() <= 0)
             return;
         processor.setParameterFromUI (ParamIDs::chordColour, (float) (colourBox.getSelectedId() - 1));
-        processor.applyProgression (juce::roundToInt (processor.raw (ParamIDs::progression)));   // the same chords, richer or plainer
+        processor.recolourChords();   // the chords on screen (edits included), richer or plainer
         refresh();
     };
     countBox.onChange = [this] { pickedFromMenu (countBox); if (countBox.getSelectedId() > 0) processor.setChordCount (countBox.getSelectedId()); refresh(); };
