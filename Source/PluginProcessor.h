@@ -452,6 +452,14 @@ private:
     std::shared_ptr<const fgg::GrooveEngine::Prepared> preparedPattern;
     FaseGroove::RetireBin<fgg::GrooveEngine::Prepared> retiredPatterns;   // RetireBin.h
     void preparePattern();
+    // A run of parameter changes (STYLE, RESET): the groove is prepared once, when the last one is made.
+    int batchedChanges = 0;
+    struct BatchedChanges
+    {
+        explicit BatchedChanges (FaseGrooveGuitarProcessor& p) : owner (p) { ++owner.batchedChanges; }
+        ~BatchedChanges() { if (--owner.batchedChanges == 0 && juce::MessageManager::existsAndIsCurrentThread()) owner.preparePattern(); }
+        FaseGrooveGuitarProcessor& owner;
+    };
     juce::TimedCallback patternTimer { [this] { preparePattern(); } };
     std::vector<fgg::NoteEvent> events;
     juce::MidiBuffer outMidi;

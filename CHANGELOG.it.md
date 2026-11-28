@@ -4,7 +4,7 @@
 
 Tutte le modifiche importanti di **Fase Groove Guitar**.
 
-## [0.10.13] — 2026-11-27
+## [0.11.0] — 2026-11-28
 
 - La lane ROOT suona la fondamentale sulla corda bassa (suonava la nota più bassa della forma: la terza di un Cmaj7, la settima di un C7).
 - Un groove modificato tiene il genere in cui è stato scelto: voicing, lick, intro e fill restano.
@@ -18,6 +18,8 @@ Tutte le modifiche importanti di **Fase Groove Guitar**.
 - Caricare un file groove svuota le lane che non ha e prende la sua lunghezza; il preset Jackin' azzera anche probabilità e roll.
 - L'audizione suona il colore di voicing del groove; la griglia ridisegna solo ciò che cambia; un blocco denso non fa mai crescere la lista eventi sul thread audio; una modifica alle impostazioni è pronta già dal blocco successivo.
 - Le build di rilascio controllano che tag, versione e changelog coincidano; i plugin vengono validati con pluginval.
+- La griglia segue tutto ciò che mostra (luci, corsia selezionata, ottave, velocity, chance e roll cambiati da altri pannelli).
+- STYLE e RESET preparano il groove una volta sola, non una per impostazione. Phrygian Deep si chiama i - bII - i - bvii.
 
 ## [0.10.12] — 2026-11-22
 

@@ -331,7 +331,7 @@ void FaseGrooveGuitarProcessor::setParameterFromUI (const juce::String& id, floa
         p->endChangeGesture();
     }    // a change made here (the message thread) is ready for the very next audio block: the audio thread
     // never builds a groove, and a stale one would play until the next timer tick
-    if (juce::MessageManager::existsAndIsCurrentThread())
+    if (batchedChanges == 0 && juce::MessageManager::existsAndIsCurrentThread())
         preparePattern();
 }
 
@@ -1032,6 +1032,7 @@ juce::StringArray FaseGrooveGuitarProcessor::styleNames()
 
 void FaseGrooveGuitarProcessor::applyStyle (int index)
 {
+    const BatchedChanges batch (*this);   // one groove prepared at the end, not one per parameter
     if (! juce::isPositiveAndBelow (index, (int) std::size (styles)))
         return;
 
@@ -1087,6 +1088,7 @@ void FaseGrooveGuitarProcessor::applyStyle (int index)
 
 void FaseGrooveGuitarProcessor::resetToDefaults()
 {
+    const BatchedChanges batch (*this);   // one groove prepared at the end, not one per parameter
     for (auto* p : getParameters())
         if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (p))
         {

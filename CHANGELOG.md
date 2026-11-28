@@ -4,7 +4,7 @@
 
 All notable changes to **Fase Groove Guitar**.
 
-## [0.10.13] — 2026-11-27
+## [0.11.0] — 2026-11-28
 
 - The ROOT lane plays the chord's root on the low string (it played the shape's lowest note: the 3rd of a Cmaj7, the 7th of a C7).
 - An edited groove keeps the genre it was chosen in: voicings, licks, intros and fills stay.
@@ -18,6 +18,8 @@ All notable changes to **Fase Groove Guitar**.
 - Loading a groove file clears the lanes it does not have and takes its length; the Jackin' preset resets chance and rolls too.
 - Audition plays the groove's own voicing colour; the grid redraws only what changed; a dense block never grows the event list on the audio thread; a settings change is ready for the very next block.
 - Release builds check that the tag matches the version and the changelog; plug-ins are validated with pluginval.
+- The grid follows everything it shows (lights, selected lane, octaves, velocity, chance and roll changed from other panels).
+- STYLE and RESET prepare the groove once, not once per setting. Phrygian Deep is named i - bII - i - bvii.
 
 ## [0.10.12] — 2026-11-22
 
