@@ -4,6 +4,10 @@
 
 All notable changes to **Fase Groove Guitar**.
 
+## [0.12.0] — 2026-11-28
+
+- Notes ending in a host's count-in or pre-roll (before beat 0) get their note-off: they hung, and through MIDI out they held external instruments too.
+
 ## [0.11.0] — 2026-11-28
 
 - The ROOT lane plays the chord's root on the low string (it played the shape's lowest note: the 3rd of a Cmaj7, the 7th of a C7).

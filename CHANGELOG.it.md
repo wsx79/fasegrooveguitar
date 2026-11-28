@@ -4,6 +4,10 @@
 
 Tutte le modifiche importanti di **Fase Groove Guitar**.
 
+## [0.12.0] — 2026-11-28
+
+- Le note che finiscono nel count-in o nel pre-roll dell'host (prima del beat 0) ricevono il note-off: restavano appese, e tramite il MIDI out bloccavano anche gli strumenti esterni.
+
 ## [0.11.0] — 2026-11-28
 
 - La lane ROOT suona la fondamentale sulla corda bassa (suonava la nota più bassa della forma: la terza di un Cmaj7, la settima di un C7).

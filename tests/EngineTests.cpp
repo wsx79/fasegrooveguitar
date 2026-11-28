@@ -1416,11 +1416,39 @@ static void testDiceDiversity()
     }
 }
 
+
+// A host's count-in or pre-roll plays negative beats: a note due to end before beat 0 must get its
+// note-off (with -1 as the "not sounding" mark, it never did, and the next note-on hung it).
+static void testCountInNoHungNotes()
+{
+    int hung = 0;
+    for (int p = 0; p < (int) guitarPatterns().size(); p += 3)
+    {
+        GuitarSettings s;
+        s.pattern = p;
+        GrooveEngine engine;
+        std::vector<NoteEvent> events;
+        for (double t = -4.0; t < 8.0; t += 0.0731)
+            engine.render (t, t + 0.0731, s, events);
+        std::map<std::pair<int, int>, int> on;
+        for (const auto& e : events)
+        {
+            if (e.velocity < 0 || e.note < 0 || e.controller >= 0) continue;
+            auto& n = on[{ e.note, e.lane }];
+            if (e.isNoteOn()) { if (n > 0) ++hung; n = 1; }
+            else n = 0;
+        }
+    }
+    std::printf ("count-in: %d note-ons over a note still sounding\n", hung);
+    CHECK (hung == 0);
+}
+
 int main()
 {
     testSlideOnDownbeatAndAnswer();
     testEarlyTemplateHitsAcrossBlocks();
     testSlowRakeAcrossBlocks();
+    testCountInNoHungNotes();
     testPresets();
     testLanesAndChords();
     testVoicings();
