@@ -194,7 +194,7 @@ GrooveEngine::GrooveEngine()
     onTime.fill (0.0);
     laneOf.fill (0);
     graceOf.fill (false);
-    pending.reserve (1024);
+    pending.reserve (4096);   // a dense block (16ths with grace notes and slides, offline renders) never grows on the audio thread
     scratch.reserve (128);
 }
 
@@ -367,7 +367,7 @@ bool GrooveEngine::samePattern (const GuitarSettings& a, const GuitarSettings& b
         && a.sectionVariation == b.sectionVariation && a.grooveBars == b.grooveBars
         && a.riffSeed == b.riffSeed   // (the variation bar takes it too)
         && (! usesSeed || (a.density == b.density && a.randomGenre == b.randomGenre))
-        && (! usesUser || a.user == b.user);
+        && (! usesUser || (a.user == b.user && a.randomGenre == b.randomGenre));   // an edited groove plays in its genre
 }
 
 void GrooveEngine::prepare (Prepared& r, const GuitarSettings& s)
@@ -379,8 +379,8 @@ void GrooveEngine::prepare (Prepared& r, const GuitarSettings& s)
 
 const GrooveEngine::Prepared& GrooveEngine::patternFor (const GuitarSettings& s)
 {
-    if (prepared != nullptr && samePattern (prepared->key, s))
-        return *prepared;
+    if (prepared != nullptr && (realtime || samePattern (prepared->key, s)))
+        return *prepared;   // realtime: the new groove arrives from the message thread, no allocation here
     if (! cacheValid || ! samePattern (cache.key, s))
     {
         prepare (cache, s);

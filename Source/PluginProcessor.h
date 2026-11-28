@@ -227,8 +227,8 @@ public:
     /** The chord a bar plays now: the held chord when the MIDI input has one, else its slot. */
     fgg::ChordTones chordForBar (long long bar) const;
     /** The chord held on the MIDI input (mask 0: none). */
-    fgg::ChordTones heldChord() const { return { liveRoot.load(), (unsigned) liveMask.load() }; }
-    bool followsHeldChord() const { return raw (ParamIDs::chordInput) > 0.5f && liveMask.load() != 0; }
+    fgg::ChordTones heldChord() const { const auto c = liveChord.load(); return { (int) (c >> 24), c & 0xffffffu }; }
+    bool followsHeldChord() const { return raw (ParamIDs::chordInput) > 0.5f && (liveChord.load() & 0xffffffu) != 0; }
 
     static bool isAudioFile (const juce::File&);
 
@@ -413,7 +413,7 @@ private:
     // The notes held on the MIDI input (audio thread), and the chord they make (for the UI too).
     std::array<bool, 128> heldNotes {};
     std::array<std::uint8_t, 128> heldCount {};   // note-ons not yet released, per pitch
-    std::atomic<int> liveRoot { 0 }, liveMask { 0 };
+    std::atomic<std::uint32_t> liveChord { 0 };   // the held chord: root << 24 | mask
 
     std::atomic<bool> linkOn { false };
     using LinkState = FaseGroove::LinkState;

@@ -13,17 +13,22 @@ All notable changes to **Fase Groove Guitar**.
 - CHORD COLOUR recolours the chords on screen (your edits included) instead of reloading the progression.
 - New chord types m(maj7), dim7 and 7b9; chords can last other than a bar (shared with Fase Groove Arranger).
 - Release notes list only this version, with the Windows installer.
+- Chords held on the MIDI input are read whole (root and shape together); the bass note decides ambiguous chords (C E G A is C6, C D G is Csus2).
+- Uplifting Chords: the up-strum on the 16th after another becomes a down-strum, as a hand alternates. Preset names match their chords (Dark Deep I - bII, Chill Seven, Jazz Turnaround, Dorian Lilt).
+- Loading a groove file clears the lanes it does not have and takes its length; the Jackin' preset resets chance and rolls too.
+- Audition plays the groove's own voicing colour; the grid redraws only what changed; a dense block never grows the event list on the audio thread; a settings change is ready for the very next block.
+- Release builds check that the tag matches the version and the changelog; plug-ins are validated with pluginval.
 
 ## [0.10.12] — 2026-11-22
 
 - Every render of a song is sample-identical: the pick noise of each note is seeded from the note and velocity.
 
-## 0.10.11 — 2026-11-01
+## [0.10.11] — 2026-11-01
 
 - Fix macOS builds incorrectly requiring the runner OS (macOS 26, or 15 for Arranger). Apply the macOS 11 deployment target before compiler initialization, including existing CMake caches.
 - Verify both Intel and Apple Silicon deployment targets and bundle metadata before signing; align the documented minimum to macOS 11+.
 
-## 0.10.10 — 2026-10-26
+## [0.10.10] — 2026-10-26
 
 - Pinned shared-module SHA and complete inventory checked offline and against its canonical source in CI; Lead included in default sync/check.
 - Translation catalogs checked for duplicate keys, including multiline entries; intentional common/product overrides remain supported.

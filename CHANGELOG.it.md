@@ -13,17 +13,22 @@ Tutte le modifiche importanti di **Fase Groove Guitar**.
 - CHORD COLOUR ricolora gli accordi sullo schermo (modifiche incluse) invece di ricaricare la progressione.
 - Nuovi tipi m(maj7), dim7 e 7b9; gli accordi possono durare più o meno di una battuta (condiviso con Fase Groove Arranger).
 - Le note di rilascio elencano solo questa versione, con l'installer Windows.
+- Gli accordi tenuti sull'ingresso MIDI si leggono interi (fondamentale e forma insieme); la nota di basso decide gli accordi ambigui (C E G A è C6, C D G è Csus2).
+- Uplifting Chords: la pennata in su sul sedicesimo dopo un'altra diventa in giù, come alterna una mano. I nomi dei preset corrispondono agli accordi (Dark Deep I - bII, Chill Seven, Jazz Turnaround, Dorian Lilt).
+- Caricare un file groove svuota le lane che non ha e prende la sua lunghezza; il preset Jackin' azzera anche probabilità e roll.
+- L'audizione suona il colore di voicing del groove; la griglia ridisegna solo ciò che cambia; un blocco denso non fa mai crescere la lista eventi sul thread audio; una modifica alle impostazioni è pronta già dal blocco successivo.
+- Le build di rilascio controllano che tag, versione e changelog coincidano; i plugin vengono validati con pluginval.
 
 ## [0.10.12] — 2026-11-22
 
 - Ogni render di un brano è identico al campione: il rumore del plettro di ogni nota è inizializzato da nota e velocity.
 
-## 0.10.11 — 2026-11-01
+## [0.10.11] — 2026-11-01
 
 - Corregge le build macOS che richiedevano il sistema del runner (macOS 26, oppure 15 per Arranger). Applica il target macOS 11 prima dell’inizializzazione dei compilatori, anche con cache CMake esistenti.
 - Verifica il minimo di sistema di entrambe le architetture Intel e Apple Silicon e i metadati dei bundle prima della firma; allinea la documentazione a macOS 11+.
 
-## 0.10.10 — 2026-10-26
+## [0.10.10] — 2026-10-26
 
 - SHA e inventario completo del modulo comune verificati offline e contro la fonte canonica in CI; Lead incluso nel sync/check predefinito.
 - Cataloghi verificati contro chiavi duplicate, anche su più righe; gli override intenzionali prodotto/comune restano supportati.

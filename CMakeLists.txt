@@ -95,6 +95,7 @@ if(FGG_BUILD_PLUGIN)
 
     target_compile_definitions(FaseGrooveGuitar PUBLIC
         JUCE_WEB_BROWSER=0
+        JUCE_USE_MP3AUDIOFORMAT=1   # MP3 samples and loops on Linux too (macOS and Windows decode them through the system)
         JUCE_USE_CURL=0
         JUCE_VST3_CAN_REPLACE_VST2=0
         JUCE_DISPLAY_SPLASH_SCREEN=0)

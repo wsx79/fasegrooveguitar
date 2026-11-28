@@ -50,11 +50,24 @@ GuitarGrid::GuitarGrid (FaseGrooveGuitarProcessor& p) : processor (p)
 
 void GuitarGrid::refresh()
 {
-    pattern = processor.displayedPattern();
+    // 30 times a second: the whole grid is redrawn only when the groove or a mute changed; the
+    // playhead moves with setPlayStep, which repaints its two columns.
+    auto next = processor.displayedPattern();
+    bool changed = next.lanes != pattern.lanes;
     for (int l = 0; l < fgg::numLanes; ++l)
-        muted[(size_t) l] = processor.isLaneMuted (l);
-    playStep = processor.displayStep();
-    repaint();
+    {
+        const bool m = processor.isLaneMuted (l);
+        changed = changed || muted[(size_t) l] != m;
+        muted[(size_t) l] = m;
+    }
+    if (changed)
+    {
+        pattern = std::move (next);
+        playStep = processor.displayStep();
+        repaint();
+    }
+    else
+        setPlayStep (processor.displayStep());
 }
 
 void GuitarGrid::setPlayStep (int step)
@@ -832,7 +845,7 @@ SongOverlay::SongOverlay (FaseGrooveGuitarProcessor& p) : processor (p)
         auto* fresh = newButtons.add (new IconButton (IconButton::Icon::none));
         Localisation::bindText (*fresh, "NEW VARIATION");
         fresh->iconColour = Palette::accent;
-        Localisation::bindTip (*fresh, "This section plays its own version of the groove (hats, percussion and ghost notes move)");
+        Localisation::bindTip (*fresh, "This section plays its own version of the groove (strums, ghost notes and accents move)");
         fresh->onClick = [this, i] { processor.regenerateSongPart (i); refresh(); };
         addAndMakeVisible (fresh);
 

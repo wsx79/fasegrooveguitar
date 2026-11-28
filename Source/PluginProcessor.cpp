@@ -329,7 +329,10 @@ void FaseGrooveGuitarProcessor::setParameterFromUI (const juce::String& id, floa
         p->beginChangeGesture();
         p->setValueNotifyingHost (p->convertTo0to1 (plainValue));
         p->endChangeGesture();
-    }
+    }    // a change made here (the message thread) is ready for the very next audio block: the audio thread
+    // never builds a groove, and a stale one would play until the next timer tick
+    if (juce::MessageManager::existsAndIsCurrentThread())
+        preparePattern();
 }
 
 //==============================================================================
@@ -1056,8 +1059,10 @@ void FaseGrooveGuitarProcessor::applyStyle (int index)
             const auto& p=fgg::guitarPatterns()[(size_t)indexOfGroove("Chicago Chank")];
             for(int lane=0;lane<fgg::numLanes;++lane)for(int step=0;step<fgg::userPatternLength;++step){
                 const auto& line=p.lanes[(size_t)lane];userGrid[(size_t)lane][(size_t)step]=step%32<16?'.':line[(size_t)step%line.size()];
+                userChance[(size_t)lane][(size_t)step]=0;userRoll[(size_t)lane][(size_t)step]=0;   // the whole preset: no chance or roll left from an earlier groove
             }
             resetStepVelocities();
+            for(int i=0;i<fgg::numSegments;++i)setSegmentAt(i,i);
             setParameterFromUI(ParamIDs::pattern,(float)fgg::userPatternIndex());
         }else setParameterFromUI(ParamIDs::pattern,(float)fgg::randomPatternIndex());
         setParameterFromUI(ParamIDs::chordColour,(float)std::min(2,fgfamily::extensions[(size_t)genre]));
@@ -1164,8 +1169,9 @@ void FaseGrooveGuitarProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
         int count = 0;   // (no vector here: nothing allocated on the audio thread)
         const auto chord = fgg::tonesOfHeld (heldNotes, count);
         // A single note is not a chord: it plays as the root of a power chord (root and 5th).
-        liveRoot = chord.root;
-        liveMask = count == 1 ? 0x81 : (int) chord.mask;
+        // root and mask in one atomic word: the editor never reads a new root with an old mask
+        const unsigned mask = count == 1 ? 0x81u : chord.mask;
+        liveChord = ((std::uint32_t) (chord.root & 0xff) << 24) | (mask & 0xffffffu);
     }
     auto settings = currentSettings();
 
@@ -1248,8 +1254,10 @@ void FaseGrooveGuitarProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
 
         const auto ready = std::atomic_load (&preparedPattern);   // the message thread keeps it alive
         engine.setPrepared (ready.get());
+        engine.setRealtime (! isNonRealtime());
         engine.render (startPpq, startPpq + blockBeats + linkCorrection, settings, events);
         engine.setPrepared (nullptr);
+        engine.setRealtime (false);
         expectedNextPpq = internalPpq = startPpq + blockBeats + linkCorrection;
 
         const auto step = (long long) std::floor (startPpq / fgg::stepLength);
@@ -1302,7 +1310,9 @@ void FaseGrooveGuitarProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
         const double ppq = juce::jmax (0.0, uiPpq.load());
         // (no allocation here: the shapes and the notes in fixed arrays)
         const auto chord = chordForBar ((long long) std::floor (ppq / 4.0));
-        const auto voicing = fgg::voiceChord (chord, nullptr, settings.roomForBand);
+        // the same shapes the groove plays: a random groove voices in its genre's colour
+        const auto colour = settings.pattern == fgg::randomPatternIndex() ? fgg::guitarColourFor (settings.randomGenre) : fgg::GuitarColour::classic;
+        const auto voicing = fgg::voiceChord (chord, nullptr, settings.roomForBand, colour);
         fgg::NoteList notes;
         fgg::laneNotes ((fgg::Lane) auditionLane, chord, voicing, (int) std::floor (ppq / fgg::stepLength) % 16,
                         settings.octaves[(size_t) auditionLane], notes, settings.roomForBand);
@@ -2254,12 +2264,13 @@ bool FaseGrooveGuitarProcessor::loadGroove (const juce::File& file)
     if (xml == nullptr || ! xml->hasTagName ("FaseGrooveGuitarGroove"))
         return false;
 
-    int l = 0;
+    int l = 0, longest = 0;
     for (auto* lane : xml->getChildWithTagNameIterator ("Lane"))
     {
         if (l >= fgg::numLanes)
             break;
         const auto steps = lane->getStringAttribute ("steps");
+        longest = juce::jmax (longest, steps.length());
         const auto levels = lane->getStringAttribute ("velocity");
         const auto chances = lane->getStringAttribute ("chance");
         const auto rolls = lane->getStringAttribute ("roll");
@@ -2275,6 +2286,18 @@ bool FaseGrooveGuitarProcessor::loadGroove (const juce::File& file)
         }
         ++l;
     }
+    // a lane the file does not have (an older groove) is empty, not what the grid held before
+    for (; l < fgg::numLanes; ++l)
+        for (int i = 0; i < gridSteps; ++i)
+        {
+            userGrid[(size_t) l][(size_t) i] = '.';
+            userVelocity[(size_t) l][(size_t) i] = 0;
+            userChance[(size_t) l][(size_t) i] = 0;
+            userRoll[(size_t) l][(size_t) i] = 0;
+        }
+    // the groove's own length: four bars when the file holds more than two
+    if (longest > 0)
+        setParameterFromUI (ParamIDs::partLength, longest > 32 ? 1.0f : 0.0f);
     for (int i = 0; i < fgg::numSegments; ++i)
         setSegmentAt (i, i);
     setParameterFromUI (ParamIDs::pattern, (float) fgg::userPatternIndex());
